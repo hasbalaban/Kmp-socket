@@ -39,6 +39,9 @@ kotlin {
 
             // Bazen Android'e özgü uyumluluk için Gson gerekebilir
             implementation(libs.gson)
+
+            implementation(libs.koin.android)
+
         }
         iosMain.dependencies {
             implementation(libs.ktor.client.darwin)
@@ -55,6 +58,7 @@ kotlin {
 
             implementation(libs.kotlinx.datetime)
 
+            implementation(libs.signalrkore)
             implementation(libs.ktor.client.core)
             implementation(libs.ktor.client.websockets)
             implementation(libs.ktor.serialization.kotlinx.json)
@@ -62,8 +66,8 @@ kotlin {
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.ktor.client.content.negotiation)
 
-            implementation(libs.signalrkore)
-
+            implementation(libs.koin.core)
+            implementation(libs.koin.viewmodel)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

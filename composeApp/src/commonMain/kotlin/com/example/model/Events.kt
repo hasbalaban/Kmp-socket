@@ -3,7 +3,23 @@ package com.example.model
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
+@Serializable
+data class EventsResponse(
+    val isSuccess: Boolean?,
+    val data: EventDataInfo?,
+    val message: String?,
+    val error: String?,
+    val info: String?,
+    val dateTime: String?
+)
 
+
+@Serializable
+data class WrapResponse<T>(
+    val data: T?,
+)
+
+@Serializable
 data class EventDataInfo(
     val isdiff : Boolean,
     val version : Long = 0,

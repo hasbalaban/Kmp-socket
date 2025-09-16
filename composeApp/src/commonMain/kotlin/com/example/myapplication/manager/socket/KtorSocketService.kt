@@ -27,7 +27,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlin.time.Duration.Companion.seconds
 
-private val mainJsonParser = Json {
+val mainJsonParser = Json {
     isLenient = true;
     ignoreUnknownKeys = true
     explicitNulls = false
