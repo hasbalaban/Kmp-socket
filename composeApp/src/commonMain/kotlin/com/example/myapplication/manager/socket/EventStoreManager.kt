@@ -1,0 +1,407 @@
+package com.mgmbk.iddaa.manager
+
+
+import com.example.model.BettingPhase
+import com.example.model.EventDataInfo
+import com.example.model.EventScore
+import com.example.model.EventTeamScore
+import com.example.model.Events
+import com.example.model.ProgramTypeEnum
+import com.example.model.SocketEvent
+import com.example.model.SportsBookUpdateInfo
+import com.example.model.ignoreNull
+import com.example.model.toArrayList
+import com.example.myapplication.manager.CouponManagerV2
+import com.example.myapplication.manager.SportsBookFilterManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+
+data class EventInfo(
+    var version : Long = 0,
+    var data : List<Events> = ArrayList()
+)
+class EventStoreManager {
+    companion object{
+
+        var liveEventData :EventData = EventData()
+        var preEvents : EventData = EventData()
+        var specialEvents : EventData = EventData()
+        val eventScores: HashMap<SportId, ScoreData> = HashMap()
+
+        private val _socketUpdated = MutableStateFlow<SportsBookUpdateInfo?>(null)
+        val socketUpdated: StateFlow<SportsBookUpdateInfo?> = _socketUpdated.asStateFlow()
+
+        fun findEvent(eventId: Int, sportId: Int, phase: Int): Events? {
+            if (phase == BettingPhase.LIVE_EVENT.value){
+                return liveEventData.data[sportId]?.events?.get(eventId)
+            }
+
+            return preEvents.data[sportId]?.events?.get(eventId) ?: specialEvents.data[sportId]?.events?.get(eventId)
+        }
+        fun findEvent(eventId: Int): Events? {
+            var foundEvent: Events?
+            val liveEvents = liveEventData.data.flatMap { it.value.events.values }
+            foundEvent = liveEvents.firstOrNull { it.eventId == eventId }
+
+            if (foundEvent != null){
+                return foundEvent
+            }
+
+            val preEvents = preEvents.data.flatMap { it.value.events.values }
+            foundEvent = preEvents.firstOrNull { it.eventId == eventId }
+
+            if (foundEvent != null){
+                return foundEvent
+            }
+
+            val specialEvents = specialEvents.data.flatMap { it.value.events.values }
+            foundEvent = specialEvents.firstOrNull { it.eventId == eventId }
+
+            return foundEvent
+        }
+
+        fun getScore(sportId: Int, eventId: Int): EventScore? {
+            return eventScores.get(sportId)?.data?.get(eventId.toString())
+        }
+        fun setScore(sportId: Int, eventScore: EventScore) {
+            val eventId = eventScore.getEventIdGreaterThanZero()
+            if (eventScores[sportId] == null){
+                val newScore = ScoreData()
+                newScore.data = HashMap()
+                eventScores[sportId] = newScore
+            }
+            eventScores.get(sportId)?.data?.set(eventId.toString(), eventScore)
+        }
+
+        fun addOrUpdateEvent(event: Events, updateAllData: Boolean = true): Events? {
+            return if(event.bettingPhase == BettingPhase.LIVE_EVENT.value){
+                addOrUpdateEventData(liveEventData, event, updateAllData)
+            }else{
+                addOrUpdateEventData(preEvents, event, updateAllData)
+            }
+        }
+        private fun addOrUpdateEventData(eventData:EventData, newEvent:Events, updateAllData : Boolean):Events?{
+            if (eventData.data[newEvent.sportId] == null) eventData.data.put(newEvent.sportId, EventInfoMap())
+
+            if (updateAllData) {
+                eventData.data[newEvent.sportId]?.events?.put(newEvent.eventId, newEvent)
+                if (eventScores[newEvent.sportId] == null){
+                    eventScores[newEvent.sportId] = ScoreData(HashMap())
+                }
+                newEvent.score?.let {
+                    eventScores[newEvent.sportId]?.data?.put(newEvent.eventId.toString(), it)
+                }
+
+            } else {
+
+                val oldEvent = eventData.data[newEvent.sportId]?.events?.get(newEvent.eventId)
+                if (oldEvent == null){
+                    eventData.data[newEvent.sportId]?.events?.put(newEvent.eventId, newEvent)
+                    return eventData.data[newEvent.sportId]?.events?.get(newEvent.eventId)
+                }
+
+                val newMarketMap = newEvent.markets?.associateBy { it.marketId }
+                oldEvent.markets?.forEach {oldMarket ->
+                    val newMarket = newMarketMap?.get(oldMarket.marketId)
+                    if (newMarket != null){
+                        if (oldMarket.marketId == newMarket.marketId) {
+                            oldMarket.mbc = newMarket.mbc
+                            oldMarket.version = newMarket.version
+                            oldMarket.status = newMarket.status
+                            oldMarket.outComes = newMarket.outComes
+                        }
+                    }
+                }
+
+
+                val oldMarketIds = oldEvent.markets?.map { it.marketId }.orEmpty().toSet()
+                val notExistMarkets = newEvent.markets?.filter { newMarket ->
+                    newMarket.marketId !in oldMarketIds
+                }
+                if (!notExistMarkets.isNullOrEmpty()){
+                    oldEvent.markets?.addAll(notExistMarkets)
+                }
+
+                eventData.data[oldEvent.sportId]?.events?.put(oldEvent.eventId, oldEvent)
+                oldEvent.score?.let { score ->
+                    eventScores[oldEvent.sportId]?.data?.put(oldEvent.eventId.toString(), score)
+                }
+                EventStoreManager().addToUpdatedList(oldEvent.eventId)
+            }
+
+            return eventData.data[newEvent.sportId]?.events?.get(newEvent.eventId)
+        }
+
+        fun setSocketUpdated(isUpdated: SportsBookUpdateInfo) {
+            _socketUpdated.value = isUpdated
+        }
+    }
+
+    fun provideRequestVersion (sportId: Int, programType : Int): Long {
+        return when (programType) {
+            ProgramTypeEnum.PreEvents.value -> preEvents.data[sportId]?.version.ignoreNull()
+            ProgramTypeEnum.Live.value -> liveEventData.data[sportId]?.version.ignoreNull()
+            else -> specialEvents.data[sportId]?.version.ignoreNull()
+        }
+    }
+
+    fun removeEvents(programType:Int, sportId:Int,events: ArrayList<Int>) {
+        events.forEach { eventId ->
+            when (programType) {
+                ProgramTypeEnum.PreEvents.value ->  preEvents.data[sportId]?.events?.remove(eventId)
+                ProgramTypeEnum.Live.value -> liveEventData.data[sportId]?.events?.remove(eventId)
+                else -> specialEvents.data[sportId]?.events?.remove(eventId)
+            }
+        }
+    }
+
+    fun addOrUpdateSportEvents(
+        programType: Int,
+        sportId: Int,
+        eventDataInfo: EventDataInfo,
+    ) {
+        eventDataInfo.removedEvents?.let {
+            removeEvents(programType,sportId, it)
+            val removedEventIds = mutableListOf<Int>()
+            it.forEach {eventId ->
+                removedEventIds.add(eventId)
+            }
+            CouponManagerV2.eventsRemoved(removedEventIds)
+        }
+
+
+        if (programType == ProgramTypeEnum.PreEvents.value){
+            if (!eventDataInfo.isdiff) {
+                preEvents.data[sportId]?.events?.clear()
+            }
+            if (preEvents.data[sportId] == null){
+                preEvents.data += hashMapOf(sportId to EventInfoMap())
+            }
+
+            preEvents.data[sportId]?.let { it ->
+                it.version = eventDataInfo.version
+                eventDataInfo.events.forEach { event ->
+                    it.events[event.eventId] = event
+                }
+            }
+            return
+        }
+
+
+        if (programType ==  ProgramTypeEnum.Live.value){
+            if (!eventDataInfo.isdiff) {
+                liveEventData.data[sportId]?.events?.clear()
+                eventScores[sportId]?.data?.clear()
+
+            }
+            if (liveEventData.data[sportId] == null){
+                liveEventData.data += hashMapOf(sportId to EventInfoMap())
+            }
+
+            liveEventData.data[sportId]?.let { it ->
+                it.version = eventDataInfo.version
+
+                eventDataInfo.eventScores?.forEach {eScore ->
+                    if (eventScores[sportId] == null){
+                        eventScores[sportId] = ScoreData(HashMap())
+                    }
+                    eventScores[sportId]?.let {
+                        it.data[eScore.value.id.toString()] =  eScore.value
+                    }
+                }
+
+                eventDataInfo.events.forEach { event ->
+                    it.events[event.eventId] = event
+                }
+            }
+            return
+        }
+
+        if (programType == ProgramTypeEnum.LongTerm.value){
+            if (!eventDataInfo.isdiff) {
+                specialEvents.data[sportId]?.events?.clear()
+            }
+
+            if (specialEvents.data[sportId] == null){
+                specialEvents.data += hashMapOf(sportId to EventInfoMap())
+            }
+
+            specialEvents.data[sportId]?.let { it ->
+                it.version = eventDataInfo.version
+                eventDataInfo.events.forEach { event ->
+                    it.events[event.eventId] = event
+                }
+            }
+            return
+        }
+
+    }
+
+    fun getSportEvents(programType: Int, sportId: Int): EventInfo {
+        return when(programType){
+            ProgramTypeEnum.PreEvents.value -> {
+                EventInfo(
+                    version = preEvents.data[sportId]?.version.ignoreNull(),
+                    data = preEvents.data[sportId]?.events?.map { it.value } ?: listOf()
+                )
+
+            }
+            ProgramTypeEnum.Live.value -> {
+                EventInfo(
+                    version = liveEventData.data[sportId]?.version.ignoreNull(),
+                    data = liveEventData.data[sportId]?.events?.map { it.value } ?: listOf()
+                )
+
+            }
+            else ->{
+                EventInfo(
+                    version = specialEvents.data[sportId]?.version.ignoreNull(),
+                    data = specialEvents.data[sportId]?.events?.map { it.value } ?: listOf()
+                )
+            }
+        }
+    }
+
+    fun updateEventFromSocket(socketEvent: SocketEvent) {
+        var event : Events? = liveEventData.data[socketEvent.sportId]?.events?.get(socketEvent.eventId)
+        event?.let {
+            if (socketEvent.action == "rp" && it.bettingPhase == BettingPhase.LIVE_EVENT.value){
+                removeLiveEvent(socketEvent)
+                return
+            }
+            val isUpdated = it.update(socketEvent)
+            if (isUpdated) {
+                addToUpdatedList(it.eventId)
+            }
+        }
+        if (socketEvent.action == "rp"){
+            event = preEvents.data[socketEvent.sportId]?.events?.get(socketEvent.eventId)
+            event?.let {
+                removePreEvent(socketEvent)
+            }
+            return
+        }
+
+        if (event == null)  {
+            event = preEvents.data[socketEvent.sportId]?.events?.get(socketEvent.eventId)
+            event?.let {
+                val isUpdated = it.update(socketEvent)
+                if (isUpdated) {
+                    addToUpdatedList(it.eventId)
+                }
+            }
+            return
+        }
+
+    }
+
+    private fun removeLiveEvent(socketEvent: SocketEvent) {
+        liveEventData.data[socketEvent.sportId]?.events?.remove(socketEvent.eventId)
+        addToUpdatedList(socketEvent.eventId)
+    }
+
+    private fun removePreEvent(socketEvent: SocketEvent) {
+        specialEvents.data[socketEvent.sportId]?.events?.remove(socketEvent.eventId)
+        preEvents.data[socketEvent.sportId]?.events?.remove(socketEvent.eventId)
+        addToUpdatedList(socketEvent.eventId)
+    }
+
+    private val updatedEvents:HashMap<Int, Int> = HashMap()
+
+
+    private fun addToUpdatedList(eventId: Int) {
+        updatedEvents[eventId] = eventId
+        // Post delayed daha önce çalıştırıldı mı?
+        if (updatedEvents.size == 1) {
+            CoroutineScope(Dispatchers.Main).launch {
+                delay(400)
+
+                CouponManagerV2.updateSocketEvents(updatedEvents.values.toList())
+
+                val updateInfo =
+                    SportsBookUpdateInfo(1, updatedEvents.values.toList().toArrayList())
+                _socketUpdated.value = updateInfo
+
+                updatedEvents.clear()
+
+            }
+        }
+    }
+
+    fun updateScoreFromSocket(socketScore: EventScore) {
+
+        var score : EventScore? = null
+        var sportId : Int = 1
+
+        eventScores.forEach {
+            val item = it.value.data[socketScore.id.toString()]
+            if (item != null){
+                score = item
+                sportId = it.key
+                return@forEach
+            }
+        }
+
+
+        score?.let {
+            it.update(socketScore)
+            addToUpdatedList(socketScore.id)
+        }?:run {
+            score = socketScore
+            score?.let {
+                val eventId = socketScore.getEventIdGreaterThanZero()
+
+                it.eventId = eventId
+                it.status = socketScore.status ?: 1
+
+                if(it.homeTeam == null)
+                    it.homeTeam = EventTeamScore(null, null, null, null, null, null, null, null, null, null, servingPlayer = null, null, null)
+
+                if(it.awayTeam == null)
+                    it.awayTeam = EventTeamScore(null,null,null,null,null,null,null,null,null,null, servingPlayer = null, null,null)
+
+                it.update(socketScore)
+
+                addScoreToList(it, sportId)
+
+                addToUpdatedList(socketScore.id)
+            }
+
+
+            val relevantEvent = liveEventData.data[sportId]?.events?.get(socketScore.eventId)
+            relevantEvent?.let {relevant ->
+                relevant.score = socketScore
+                liveEventData.data[sportId]?.events?.set(relevant.eventId, relevantEvent)
+            }
+        }
+    }
+
+    fun addScoreToList(score: EventScore, sportId: Int) {
+        if (eventScores[sportId] == null){
+            val newScore = ScoreData()
+            newScore.data = HashMap()
+            eventScores[sportId] = newScore
+        }
+        eventScores[sportId]?.data?.put(score.getEventIdGreaterThanZero().toString(), score)
+    }
+}
+
+data class EventData(
+    var data : HashMap<SportId, EventInfoMap> = HashMap()
+)
+data class ScoreData(
+    var data : HashMap<String, EventScore> = HashMap()
+)
+
+data class EventInfoMap(
+    var version : Long = 0,
+    var events : HashMap<EventId, Events> = HashMap()
+)
+
+private typealias SportId = Int
+private typealias EventId = Int
