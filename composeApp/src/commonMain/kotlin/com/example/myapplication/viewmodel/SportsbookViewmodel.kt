@@ -1,15 +1,10 @@
 package com.example.myapplication.viewmodel
 
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.model.EventDataInfo
-import com.example.model.Events
 import com.example.model.EventsResponse
 import com.example.model.MarketConfigResponse
 import com.example.model.MarketResponse
-import com.example.model.SportTypeEnum
-import com.example.model.WrapResponse
-import com.example.model.ignoreNull
 import com.example.myapplication.manager.MarketConfig
 import com.example.myapplication.manager.socket.mainJsonParser
 import com.mgmbk.iddaa.manager.EventStoreManager
@@ -24,9 +19,6 @@ import io.ktor.client.request.get
 import io.ktor.client.request.parameter
 import io.ktor.client.statement.HttpResponse
 import io.ktor.serialization.kotlinx.json.json
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -48,7 +40,7 @@ class SportsbookViewmodel : BaseViewmodel() {
         viewModelScope.launch {
             while (true) {
                 delay(500)
-                _counter.emit(counter.value + 1)
+                //_counter.emit(counter.value + 1)
             }
         }
     }
@@ -62,7 +54,7 @@ class SportsbookViewmodel : BaseViewmodel() {
         val service = ApiService()
         val eventDataInfo = service.getSportsbookEvents(
             sportType = selectedSportId,
-            programType = 1,
+            programType = selectedProgramType,
             version = version
         )
 
@@ -123,14 +115,14 @@ class SportsbookViewmodel : BaseViewmodel() {
 
     private fun saveOrUpdateEventData(
         programType: Int,
-        sportType: Int?,
+        sportType: Int,
         eventDataInfo: EventDataInfo
     ) {
         val eventStoreManager = EventStoreManager()
 
         eventStoreManager.addOrUpdateSportEvents(
             programType = programType,
-            sportId = sportType.ignoreNull(),
+            sportId = sportType,
             eventDataInfo = eventDataInfo
         )
     }

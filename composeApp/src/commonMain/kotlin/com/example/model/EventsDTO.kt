@@ -1,5 +1,6 @@
 package com.example.model
 
+import com.example.mapper.toEventScoreItem
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -13,25 +14,19 @@ data class EventsResponse(
     val dateTime: String?
 )
 
-
-@Serializable
-data class WrapResponse<T>(
-    val data: T?,
-)
-
 @Serializable
 data class EventDataInfo(
     val isdiff : Boolean,
     val version : Long = 0,
-    val events : List<Events>,
+    val events : List<EventsDTO>,
     @SerialName("rmi")
     val removedEvents:ArrayList<Int>?,
     @SerialName("sc")
-    val eventScores : Map<String, EventScore>? = null,
+    val eventScores : Map<String, EventScoreDTO>? = null,
 )
 
 @Serializable
-data class Events(
+data class EventsDTO(
     @SerialName("i")
     val eventId : Int,
 
@@ -86,7 +81,7 @@ data class Events(
     val hasRapid : Boolean? = null,
 
     @SerialName("m")
-    val markets : ArrayList<Market>? = null,
+    val markets : ArrayList<MarketDTO>? = null,
 
     @SerialName("ci")
     val competitionId : Int,
@@ -99,7 +94,7 @@ data class Events(
 
     //Canlı maçlar için maçın skor bilgisi döner
     @SerialName("sc")
-    var score : EventScore? = null,
+    var score : EventScoreDTO? = null,
 
     @SerialName("oc")
     var oddCount : Int?,
@@ -116,7 +111,7 @@ data class Events(
     @SerialName("hs")
     val hasStream: Boolean? = false,
 
-    var sliderMarkets: ArrayList<Market>? = null,
+    var sliderMarkets: ArrayList<MarketDTO>? = null,
 ){
 
     var isFavorite = false
@@ -133,13 +128,13 @@ data class Events(
         return "$homeTeamName\n$awayTeamName"
     }
 
-    fun getMarkets(muks : List<String>): List<Market>? {
+    fun getMarkets(muks : List<String>): List<MarketDTO>? {
         return markets?.filter {
             muks.contains(it.key())
         }
     }
 
-    fun getMarket(muk : String, sov:String? = null): Market? {
+    fun getMarket(muk : String, sov:String? = null): MarketDTO? {
         try {
             return markets?.filter {
                 muk == it.key() &&
@@ -200,10 +195,10 @@ data class Events(
             val subtype = types[1].toInt()
 
             val outcomes = socketMarket.outcomes?.map {
-                OutComes(it.no.ignoreNull(), it.odd, null, it.webOdd, it.name.ignoreNull())
+                OutComesDTO(it.no.ignoreNull(), it.odd, null, it.webOdd, it.name.ignoreNull())
             }.toArrayList()
 
-            var newMarket = Market(
+            var newMarket = MarketDTO(
                 marketId = socketMarket.id,
                 type = type,
                 subtype= subtype,
@@ -223,10 +218,10 @@ data class Events(
 }
 
 @Serializable
-data class Market (
+data class MarketDTO (
 
     @SerialName("i")
-    val marketId : Long ,
+    val marketId : Long,
 
     @SerialName("t")
     val type : Int? = null,
@@ -244,12 +239,12 @@ data class Market (
     var mbc : Int?,
 
     @SerialName("o")
-    var outComes : ArrayList<OutComes>? = null,
+    var outComes : ArrayList<OutComesDTO>? = null,
 
     @SerialName("sov")
-    val specialOddValue : String? ,
+    val specialOddValue : String?,
 
-) {
+    ) {
     fun key()= type.toString() + "_" + subtype
 
     private var specialOdd:Double?= null
@@ -285,7 +280,7 @@ data class Market (
                 updated = updated || _updated
 
             } ?: run {
-                val outcome = OutComes(
+                val outcome = OutComesDTO(
                     outcomeNo = socketOutcome.no.ignoreNull(),
                 odd = socketOutcome.odd,
                 webOdd = socketOutcome.webOdd,
@@ -304,7 +299,7 @@ data class Market (
 }
 
 @Serializable
-data class OutComes(
+data class OutComesDTO(
 
     @SerialName("no")
     val outcomeNo : Int,

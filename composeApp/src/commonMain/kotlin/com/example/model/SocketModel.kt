@@ -47,8 +47,8 @@ data class SocketEventMarket(
     val speacialOddValue: String?,
 
     ) {
-    fun getOutcomeList(): ArrayList<OutComes> {
-        val outcomeList = arrayListOf<OutComes>()
+    fun getOutcomeList(): ArrayList<OutComesDTO> {
+        val outcomeList = arrayListOf<OutComesDTO>()
         outcomes?.forEach {
             outcomeList.add(it.toOutcome())
         }
@@ -67,8 +67,8 @@ data class SocketEventOutcome(
     @SerialName("wo")
     val webOdd: Double?,
 ) {
-    fun toOutcome(): OutComes {
-        return OutComes(
+    fun toOutcome(): OutComesDTO {
+        return OutComesDTO(
             outcomeNo = no ?: -1,
             odd = odd,
             previousOdd = null,

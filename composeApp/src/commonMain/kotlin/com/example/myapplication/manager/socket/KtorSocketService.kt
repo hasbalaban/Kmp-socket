@@ -1,6 +1,6 @@
 package com.example.myapplication.manager.socket
 
-import com.example.model.EventScore
+import com.example.model.EventScoreDTO
 import com.example.model.SocketEvent
 import com.mgmbk.iddaa.manager.EventStoreManager
 import eu.lepicekmichal.signalrkore.AutomaticReconnect
@@ -90,8 +90,8 @@ class SportsBookSocketManager() {
     private val _eventsFlow = MutableSharedFlow<SocketEvent>()
     val eventsFlow: SharedFlow<SocketEvent> = _eventsFlow.asSharedFlow()
 
-    private val _scoresFlow = MutableSharedFlow<EventScore>()
-    val scoresFlow: SharedFlow<EventScore> = _scoresFlow.asSharedFlow()
+    private val _scoresFlow = MutableSharedFlow<EventScoreDTO>()
+    val scoresFlow: SharedFlow<EventScoreDTO> = _scoresFlow.asSharedFlow()
 
 
     fun startConnections() {
@@ -129,7 +129,7 @@ class SportsBookSocketManager() {
     private suspend fun listenToCurrentScore() {
         try {
             liveConnection.on("currentScore", JsonObject.serializer()).collect { strScore ->
-                val score = mainJsonParser.decodeFromString<EventScore?>(strScore.arg1.toString())
+                val score = mainJsonParser.decodeFromString<EventScoreDTO?>(strScore.arg1.toString())
                 score?.let {
                     eventStore.updateScoreFromSocket(it)
                 }

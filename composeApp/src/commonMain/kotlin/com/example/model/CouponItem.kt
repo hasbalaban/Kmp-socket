@@ -30,7 +30,7 @@ data class CouponItem @OptIn(ExperimentalTime::class) constructor(
         itemData = CouponItemData(getCouponItemData())
     }
 
-    fun getCouponItemData(): Triple<Events?, Market?, OutComes?> {
+    fun getCouponItemData(): Triple<EventsDTO?, MarketDTO?, OutComesDTO?> {
         val event = EventStoreManager.findEvent(eventId, sportId, bettingPhase)
         val market = event?.markets?.firstOrNull { it.marketId.toInt() == marketId }
         val outcome = market?.outComes?.firstOrNull { it.outcomeNo == outcomeNo }
@@ -63,7 +63,7 @@ data class CouponItem @OptIn(ExperimentalTime::class) constructor(
     }
 
     companion object {
-        fun getMarketName(market: Market, outComes: OutComes, withOutcome: Boolean = true): String {
+        fun getMarketName(market: MarketDTO, outComes: OutComesDTO, withOutcome: Boolean = true): String {
             val marketLookup = MarketConfig.getMarketLookup(market.key() ?: "")
             val marketNameStr = marketLookup?.getName(market.specialOddValue ?: "") ?: "-"
             val outcomeStr = marketLookup?.getOutcomeName(outComes.outcomeNo, market.specialOddValue) ?: outComes.name
@@ -79,5 +79,5 @@ data class CouponItem @OptIn(ExperimentalTime::class) constructor(
 
 @Serializable
 data class CouponItemData(
-    val couponItemData : Triple<Events?, Market?, OutComes?>?
+    val couponItemData : Triple<EventsDTO?, MarketDTO?, OutComesDTO?>?
 )

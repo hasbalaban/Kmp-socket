@@ -25,13 +25,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlin.collections.get
-import kotlin.compareTo
-import kotlin.text.get
-import kotlin.toString
 
 data class EventInfo(
     var version: Long = 0,
-    var data: List<Events> = ArrayList()
+    var data: List<EventsDTO> = ArrayList()
 )
 
 class EventStoreManager {
@@ -45,7 +42,7 @@ class EventStoreManager {
         private val _socketUpdated = MutableStateFlow<SportsBookUpdateInfo?>(null)
         val socketUpdated: StateFlow<SportsBookUpdateInfo?> = _socketUpdated.asStateFlow()
 
-        fun findEvent(eventId: Int, sportId: Int, phase: Int): Events? {
+        fun findEvent(eventId: Int, sportId: Int, phase: Int): EventsDTO? {
             if (phase == BettingPhase.LIVE_EVENT.value) {
                 return liveEventData.data[sportId]?.events?.get(eventId)
             }
@@ -54,8 +51,8 @@ class EventStoreManager {
                 ?: specialEvents.data[sportId]?.events?.get(eventId)
         }
 
-        fun findEvent(eventId: Int): Events? {
-            var foundEvent: Events?
+        fun findEvent(eventId: Int): EventsDTO? {
+            var foundEvent: EventsDTO?
             val liveEvents = liveEventData.data.flatMap { it.value.events.values }
             foundEvent = liveEvents.firstOrNull { it.eventId == eventId }
 
@@ -100,13 +97,10 @@ class EventStoreManager {
 
         private fun addOrUpdateEventData(
             eventData: EventData,
-            newEvent: Events,
+            newEvent: EventsDTO,
             updateAllData: Boolean
-        ): Events? {
-            if (eventData.data[newEvent.sportId] == null) eventData.data.put(
-                newEvent.sportId,
-                EventInfoMap()
-            )
+        ): EventsDTO? {
+            if (eventData.data[newEvent.sportId] == null) eventData.data.put(newEvent.sportId, EventInfoMap())
 
             if (updateAllData) {
                 eventData.data[newEvent.sportId]?.events?.put(newEvent.eventId, newEvent)

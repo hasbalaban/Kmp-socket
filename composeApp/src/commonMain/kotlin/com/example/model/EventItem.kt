@@ -1,17 +1,160 @@
 package com.example.model
+
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
+
 @Serializable
-data class EventScore(
-    @SerialName("eid") var eventId: Int = 0,
-    @SerialName("id") var id: Int = 0,
-    @SerialName("t") var updateDate: Long?,
-    @SerialName("s") var status: Int = 0,
-    @SerialName("ht") var homeTeam: EventTeamScore?,
-    @SerialName("at") var awayTeam: EventTeamScore?,
-    @SerialName("min") var minute: String?,
-    @SerialName("sec") var second: String?,
+data class EventItem(
+    @SerialName("i")
+    val eventId : Int,
+
+    @SerialName("mpi")
+    val mappedId: Int?,
+
+    @SerialName("bri")
+    val betRadarId : Long? = null,
+
+    @SerialName("cref")
+    val cref : Long? = null,
+
+    @SerialName("v")
+    val eventVersion : Long,
+
+    @SerialName("n")
+    val eventName : String?,
+
+    @SerialName("sid")
+    val sportId : Int,
+
+    @SerialName("d")
+    val eventDate : Long,
+
+    // 0:closed, 1, open, -1, paused, -2:suspended
+    @SerialName("s")
+    val status : Int,
+
+    // 0:pre, 1:live
+    @SerialName("bp")
+    val bettingPhase : Int = 0,
+
+    @SerialName("il")
+    val isLive : Boolean = false,
+
+    @SerialName("mbc")
+    val minimumBetCount : Int = 1,
+
+    @SerialName("kOdd")
+    val kingOdds : Boolean = false,
+
+    @SerialName("kMbc")
+    val kingMbc : Boolean = false,
+
+    @SerialName("kLive")
+    val isKingLive : Boolean = false,
+
+    @SerialName("hduel")
+    val hasDuel : Boolean? = false,
+
+    @SerialName("hr")
+    val hasRapid : Boolean? = null,
+
+    @SerialName("m")
+    val markets : List<MarketItem>? = null,
+
+    @SerialName("ci")
+    val competitionId : Int,
+
+    @SerialName("rhei")
+    val realHomeEventId : Int? = null,
+
+    @SerialName("raei")
+    val realAwayEventId : Int? = null,
+
+    //Canlı maçlar için maçın skor bilgisi döner
+    @SerialName("sc")
+    val score : EventScoreItem? = null,
+
+    @SerialName("oc")
+    val oddCount : Int?,
+
+    @SerialName("hn")
+    val homeTeamName : String?,
+
+    @SerialName("an")
+    val awayTeamName : String?,
+
+    @SerialName("hc")
+    val hasComments: Boolean? = false,
+
+    @SerialName("hs")
+    val hasStream: Boolean? = false,
+
+    val sliderMarkets: List<MarketItem>? = null,
+
+    val isSelected : Boolean = false
+)
+
+@Serializable
+data class MarketItem (
+
+    @SerialName("i")
+    val marketId : Long,
+
+    @SerialName("t")
+    val type : Int? = null,
+
+    @SerialName("st")
+    val subtype : Int? = null,
+
+    @SerialName("v")
+    val version : Long = 0,
+
+    @SerialName("s")
+    val status : Int? = null,
+
+    @SerialName("mbc")
+    val mbc : Int?,
+
+    @SerialName("o")
+    val outComes : List<OutComesItem>? = null,
+
+    @SerialName("sov")
+    val specialOddValue : String?,
+
+    ) {
+    fun key()= type.toString() + "_" + subtype
+
+    private val specialOdd:Double?= null
+    fun sov():Double{
+        if(specialOdd != null)
+            return specialOdd.ignoreNull()
+        val sovs:List<String> = specialOddValue.ignoreNull().split("|")
+
+        return if (sovs.isNotEmpty()){
+            sovs[sovs.size-1].toDoubleIgnoreNull()
+        }else{
+            0.0
+        }.ignoreNull()
+    }
+
+
+    fun isViewable():Boolean {
+        return  MarketStatus.isViewable(status.ignoreNull())
+    }
+
+}
+
+@Serializable
+data class EventScoreItem(
+    @SerialName("eid") val eventId: Int = 0,
+    @SerialName("id") val id: Int = 0,
+    @SerialName("t") val updateDate: Long?,
+    @SerialName("s") val status: Int = 0,
+    @SerialName("ht") val homeTeam: EventTeamScoreItem?,
+    @SerialName("at") val awayTeam: EventTeamScoreItem?,
+    @SerialName("min") val minute: String?,
+    @SerialName("sec") val second: String?,
 ) {
     fun getEventIdGreaterThanZero(): Int {
         return if(eventId > 0) eventId else id
@@ -120,7 +263,7 @@ data class EventScore(
                 it
             }
             ScoreType.SET_GAME_SCORE -> teamScore?.gameScore.let {
-               return  if(it.ignoreNull(0) > 40) "AV" else it.ignoreNull(0).toString()
+                return  if(it.ignoreNull(0) > 40) "AV" else it.ignoreNull(0).toString()
             }
             ScoreType.QUARTER, ScoreType.SETS -> {
                 return getStrSetScore(isHome, partID, scoreType).ignoreNull()
@@ -176,7 +319,7 @@ data class EventScore(
         return score ?: 0
     }
 
-    fun getTeamSetScore(teamScore: EventTeamScore?, set: Int, type: ScoreType): Int? {
+    fun getTeamSetScore(teamScore: EventTeamScoreItem?, set: Int, type: ScoreType): Int? {
         if(teamScore != null) {
             val partScore: ArrayList<SetScore>? = if(type == ScoreType.SETS) {
                 teamScore.setScores
@@ -252,27 +395,6 @@ data class EventScore(
         return "-"
     }
 
-    fun update(score:EventScore){
-        eventId = score.getEventIdGreaterThanZero()
-        score.updateDate?.let { updateDate = it }
-        status = if(score.status > 0) score.status else status
-        score.minute?.let { minute = it }
-        score.second?.let { second = it }
-        score.homeTeam?.let { homeScore ->
-            if (score.awayTeam?.servingPlayer == true){
-                homeTeam?.servingPlayer = false
-            }
-
-            homeTeam?.update(homeScore)
-        }
-        score.awayTeam?.let { awayScore ->
-            if (score.homeTeam?.servingPlayer == true){
-                awayTeam?.servingPlayer = false
-            }
-
-            awayTeam?.update(awayScore)
-        }
-    }
 
     fun getScoreWithGameStatus(): String {
         val statusType = MatchScoreStatus.getFromValue(status)
@@ -296,67 +418,21 @@ data class EventScore(
 }
 
 @Serializable
-data class EventTeamScore(
-    @SerialName("r") var regularScore: Int?,
-    @SerialName("c") var currentScore: Int?,
-    @SerialName("qs") var quarterScores: ArrayList<SetScore>?,
-    @SerialName("et") var extraTimeScore: Int?,
-    @SerialName("pe") var penaltiesScore: Int?,
-    @SerialName("co") var corner: Int?,
-    @SerialName("hco") var halfCorner: Int?,
-    @SerialName("yc") var yellowCard: Int?,
-    @SerialName("rc") var redCard: Int?,
-    @SerialName("gs") var gameScore: Int?,
-    @SerialName("sp") var servingPlayer: Boolean?,
-    @SerialName("ss") var setScores: ArrayList<SetScore>?,
-    @SerialName("ht") var halfScore: Int?
+data class EventTeamScoreItem(
+    @SerialName("r") val regularScore: Int?,
+    @SerialName("c") val currentScore: Int?,
+    @SerialName("qs") val quarterScores: ArrayList<SetScore>?,
+    @SerialName("et") val extraTimeScore: Int?,
+    @SerialName("pe") val penaltiesScore: Int?,
+    @SerialName("co") val corner: Int?,
+    @SerialName("hco") val halfCorner: Int?,
+    @SerialName("yc") val yellowCard: Int?,
+    @SerialName("rc") val redCard: Int?,
+    @SerialName("gs") val gameScore: Int?,
+    @SerialName("sp") val servingPlayer: Boolean?,
+    @SerialName("ss") val setScores: ArrayList<SetScore>?,
+    @SerialName("ht") val halfScore: Int?
 ) {
-    fun update(newTeamScore: EventTeamScore){
-        newTeamScore.regularScore?.let { regularScore = it }
-        newTeamScore.currentScore?.let { currentScore = it }
-        newTeamScore.extraTimeScore?.let { extraTimeScore = it }
-        newTeamScore.penaltiesScore?.let { penaltiesScore = it }
-        newTeamScore.corner?.let { corner = it }
-        newTeamScore.halfCorner?.let { halfCorner = it }
-        newTeamScore.yellowCard?.let { yellowCard = it }
-        newTeamScore.redCard?.let { redCard = it }
-        newTeamScore.gameScore?.let { gameScore = it }
-        newTeamScore.halfScore?.let { halfScore = it }
-        newTeamScore.servingPlayer?.let { servingPlayer = it }
-
-        newTeamScore.setScores?.let { partScores ->
-            partScores.forEach { newSetScoreItem ->
-                var setScore = setScores?.firstOrNull { it.number == newSetScoreItem.number }
-                if(setScore == null) {
-                    setScore = SetScore(
-                        newSetScoreItem.score,
-                        newSetScoreItem.number,
-                        newSetScoreItem.tieBreakScore
-                    )
-                    setScores?.add(setScore)
-                }else{
-                    setScore.update(newSetScoreItem)
-                }
-            }
-        }
-
-        newTeamScore.quarterScores?.let {
-            it.forEach { newQuarterScoreItem ->
-                var quarterScore = quarterScores?.filter { it.number == newQuarterScoreItem.number }?.firstOrNull()
-                if(quarterScore == null) {
-                    quarterScore = SetScore(
-                        newQuarterScoreItem.score,
-                        newQuarterScoreItem.number,
-                        newQuarterScoreItem.tieBreakScore
-                    )
-                    quarterScores?.add(quarterScore)
-                }else{
-                    quarterScore.update(newQuarterScoreItem)
-                }
-            }
-        }
-
-    }
 
     fun map(): HashMap<String, Int> {
         val hashMap = hashMapOf(
@@ -384,17 +460,34 @@ data class EventTeamScore(
 }
 
 @Serializable
-data class SetScore(
-    @SerialName("s") var score: Int?,
-    @SerialName("n") val number: Int,
-    @SerialName("tb") var tieBreakScore: Int = -1
-){
-    fun update(_newSetScore:SetScore){
-        _newSetScore.score?.let {
-            score = it
-        }
-        if(_newSetScore.tieBreakScore >-1){
-            tieBreakScore = _newSetScore.tieBreakScore
-        }
+data class OutComesItem(
+
+    @SerialName("no")
+    val outcomeNo : Int,
+
+    @SerialName("odd")
+    val odd : Double? = null,
+
+    @SerialName("podd")
+    val previousOdd : Double? = null,
+
+    @SerialName("wodd")
+    val webOdd : Double? = null,
+
+    @SerialName("n")
+    val name : String = "",
+
+    ){
+
+    val oddChangeStatus : OddChangeStatus? = OddChangeStatus.NONE
+    fun prevOddIsDifferent(): Boolean {
+        return (odd != null && odd != previousOdd)
     }
 }
+
+@Serializable
+data class SetScoreItem(
+    @SerialName("s") val score: Int?,
+    @SerialName("n") val number: Int,
+    @SerialName("tb") val tieBreakScore: Int = -1
+)

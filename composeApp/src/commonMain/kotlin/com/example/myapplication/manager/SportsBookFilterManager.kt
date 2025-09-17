@@ -1,10 +1,9 @@
 package com.example.myapplication.manager
 
 
-import com.example.model.Events
+import com.example.model.EventsDTO
 import com.example.model.LeagueSelectionFilterItem
 import com.example.model.ignoreNull
-import com.example.myapplication.listextensions.SynchronizedMutableMap
 
 class SportsBookFilterManager {
 
@@ -113,7 +112,7 @@ class SportsBookFilterManager {
         }
 
         suspend fun updateDateAndLeagueAvailableList(
-            event: Events
+            event: EventsDTO
         ) {
             val competition = MarketConfig.getCompetition(event.competitionId)
             val leagueItem = LeagueSelectionFilterItem(
@@ -126,7 +125,7 @@ class SportsBookFilterManager {
             availableLeagues[leagueItem.competitionId] = leagueItem
         }
 
-        fun filterEvents(events: List<Events>): List<Events> {
+        fun filterEvents(events: List<EventsDTO>): List<EventsDTO> {
             val searchedText =
                 selectedFilter.search.searchedText.transliterateTurkishToEnglish().lowercase()
             var strSearch = ""

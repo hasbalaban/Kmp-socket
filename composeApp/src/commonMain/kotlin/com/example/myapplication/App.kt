@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.myapplication.viewmodel.SportsbookViewmodel
+import com.mgmbk.iddaa.manager.EventStoreManager
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
@@ -82,6 +83,14 @@ private fun EventSection(
     viewModel: SportsbookViewmodel = koinViewModel()
 ){
     val events by viewModel.events.collectAsState()
+    val socketUpdateInfo by EventStoreManager.socketUpdated.collectAsState()
+
+    LaunchedEffect(socketUpdateInfo){
+        if (socketUpdateInfo?.events?.isNotEmpty() == true) {
+            println("Socket güncellendi, filterChanged() tetikleniyor. Yeni değer: $socketUpdateInfo")
+            viewModel.filterChanged()
+        }
+    }
 
     LaunchedEffect(Unit){
         viewModel.getEvents()
@@ -94,7 +103,7 @@ private fun EventSection(
 
     LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)){
         items(events){
-            Text(it.event.homeTeamName.toString() + "-" + it.event.awayTeamName.toString(), color = Color.Black, fontSize = 16.sp)
+            Text(it.score?.minute.toString() + "-" + it.event.awayTeamName.toString(), color = Color.Black, fontSize = 16.sp)
         }
     }
 }
