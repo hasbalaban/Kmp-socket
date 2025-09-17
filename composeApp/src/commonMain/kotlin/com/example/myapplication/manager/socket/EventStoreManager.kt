@@ -1,13 +1,17 @@
 package com.mgmbk.iddaa.manager
 
 
+import com.example.mapper.toEventItem
+import com.example.mapper.toEventScoreItem
+import com.example.mapper.toMarketItem
 import com.example.model.BettingPhase
-import com.example.model.DisplayItem
 import com.example.model.EventDataInfo
-import com.example.model.EventScore
-import com.example.model.EventTeamScore
-import com.example.model.Events
-import com.example.model.Market
+import com.example.model.EventItem
+import com.example.model.EventScoreDTO
+import com.example.model.EventScoreItem
+import com.example.model.EventTeamScoreDTO
+import com.example.model.EventsDTO
+import com.example.model.MarketItem
 import com.example.model.MarketLookup
 import com.example.model.ProgramTypeEnum
 import com.example.model.SocketEvent
@@ -73,11 +77,11 @@ class EventStoreManager {
             return foundEvent
         }
 
-        fun getScore(sportId: Int, eventId: Int): EventScore? {
+        fun getScore(sportId: Int, eventId: Int): EventScoreDTO? {
             return eventScores.get(sportId)?.data?.get(eventId.toString())
         }
 
-        fun setScore(sportId: Int, eventScore: EventScore) {
+        fun setScore(sportId: Int, eventScore: EventScoreDTO) {
             val eventId = eventScore.getEventIdGreaterThanZero()
             if (eventScores[sportId] == null) {
                 val newScore = ScoreData()
@@ -87,7 +91,7 @@ class EventStoreManager {
             eventScores.get(sportId)?.data?.set(eventId.toString(), eventScore)
         }
 
-        fun addOrUpdateEvent(event: Events, updateAllData: Boolean = true): Events? {
+        fun addOrUpdateEvent(event: EventsDTO, updateAllData: Boolean = true): EventsDTO? {
             return if (event.bettingPhase == BettingPhase.LIVE_EVENT.value) {
                 addOrUpdateEventData(liveEventData, event, updateAllData)
             } else {
@@ -230,6 +234,13 @@ class EventStoreManager {
                 }
 
                 eventDataInfo.events.forEach { event ->
+                    eventScores.get(event.sportId)?.data?.get(event.eventId.toString())?.let {
+                        if (event.score == null) {
+                            event.score = it
+                        }else{
+                            event.score?.update(it)
+                        }
+                    }
                     it.events[event.eventId] = event
                 }
             }
@@ -284,7 +295,7 @@ class EventStoreManager {
     }
 
     fun updateEventFromSocket(socketEvent: SocketEvent) {
-        var event: Events? =
+        var event: EventsDTO? =
             liveEventData.data[socketEvent.sportId]?.events?.get(socketEvent.eventId)
         event?.let {
             if (socketEvent.action == "rp" && it.bettingPhase == BettingPhase.LIVE_EVENT.value) {
@@ -350,9 +361,9 @@ class EventStoreManager {
         }
     }
 
-    fun updateScoreFromSocket(socketScore: EventScore) {
+    fun updateScoreFromSocket(socketScore: EventScoreDTO) {
 
-        var score: EventScore? = null
+        var score: EventScoreDTO? = null
         var sportId: Int = 1
 
         eventScores.forEach {
@@ -367,6 +378,7 @@ class EventStoreManager {
 
         score?.let {
             it.update(socketScore)
+            findEvent(socketScore.eventId)?.score?.update(it)
             addToUpdatedList(socketScore.id)
         } ?: run {
             score = socketScore
@@ -377,38 +389,10 @@ class EventStoreManager {
                 it.status = socketScore.status ?: 1
 
                 if (it.homeTeam == null)
-                    it.homeTeam = EventTeamScore(
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        servingPlayer = null,
-                        null,
-                        null
-                    )
+                    it.homeTeam = EventTeamScoreDTO(null, null, null, null, null, null, null, null, null, null, servingPlayer = null, null, null)
 
                 if (it.awayTeam == null)
-                    it.awayTeam = EventTeamScore(
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        null,
-                        servingPlayer = null,
-                        null,
-                        null
-                    )
+                    it.awayTeam = EventTeamScoreDTO(null, null, null, null, null, null, null, null, null, null, servingPlayer = null, null, null)
 
                 it.update(socketScore)
 
@@ -426,7 +410,7 @@ class EventStoreManager {
         }
     }
 
-    fun addScoreToList(score: EventScore, sportId: Int) {
+    fun addScoreToList(score: EventScoreDTO, sportId: Int) {
         if (eventScores[sportId] == null) {
             val newScore = ScoreData()
             newScore.data = HashMap()
@@ -441,22 +425,24 @@ data class EventData(
 )
 
 data class ScoreData(
-    var data: HashMap<String, EventScore> = HashMap()
+    var data: HashMap<String, EventScoreDTO> = HashMap()
 )
 
 data class EventInfoMap(
     var version: Long = 0,
-    var events: HashMap<EventId, Events> = HashMap()
+    var events: HashMap<EventId, EventsDTO> = HashMap()
 )
 
 private typealias SportId = Int
 private typealias EventId = Int
 
-const val selectedProgramType = 0
-const val selectedSportId = 1
+const val selectedProgramType = 1
+const val selectedSportId = 137
 
 fun sortEventsAndSetEventList(): List<SportsBookItemDTO> {
-    val events = EventStoreManager().getSportEvents(selectedProgramType, selectedSportId)
+    val events = EventStoreManager().getSportEvents(selectedProgramType, selectedSportId).data.sortedBy {
+        it.score == null
+    }
 
     val muks = SportsBookFilterManager.selectedFilter.selectedGroupKey.markets
     val mukSize = muks.size.coerceAtLeast(0)
@@ -492,31 +478,37 @@ fun sortEventsAndSetEventList(): List<SportsBookItemDTO> {
 
     val coupons = CouponManagerV2.getCouponAsList()
 
-    return events.data.mapIndexed {index, event ->
-        event.isSelected = coupons.any { it.eventId == event.eventId }
+    return events.mapIndexed {index, event->
+        val isSelected = coupons.any { it.eventId == event.eventId }
 
-        var market1: Market? = null
-        var market2: Market? = null
+        var market1: MarketItem? = null
+        var market2: MarketItem? = null
         muk1?.let {
-            market1 = event.getMarket(it, sov1)
+            market1 = event.getMarket(it, sov1)?.toMarketItem()
         }
         muk2?.let {
-            market2 = event.getMarket(it, sov2)
+            market2 = event.getMarket(it, sov2)?.toMarketItem()
         }
 
-        val markets: Pair<Market?, Market?> = Pair(market1, market2)
+
+        val eventItem = event.toEventItem(isSelected = isSelected)
+        val markets: Pair<MarketItem?, MarketItem?> = Pair(market1, market2)
+        val eventScore = EventStoreManager.eventScores[event.sportId]?.data?.get(event.eventId.toString())?.toEventScoreItem()
+
 
         SportsBookItemDTO(
-            event = event,
+            event = eventItem,
             markets = markets,
             marketLookups = marketsLookups,
+            score = eventScore
         )
 
     }
 }
 
 data class SportsBookItemDTO(
-    val event: Events,
-    val markets: Pair<Market?, Market?>,
-    val marketLookups: Pair<MarketLookup?, MarketLookup?>
+    val event: EventItem,
+    val markets: Pair<MarketItem?, MarketItem?>,
+    val marketLookups: Pair<MarketLookup?, MarketLookup?>,
+    val score: EventScoreItem?
 )
