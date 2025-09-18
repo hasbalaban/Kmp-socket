@@ -5,6 +5,8 @@ import com.example.model.EventDataInfo
 import com.example.model.EventsResponse
 import com.example.model.MarketConfigResponse
 import com.example.model.MarketResponse
+import com.example.model.SportInfo
+import com.example.model.SportInfoResponse
 import com.example.model.SportsBookUpdateInfo
 import com.example.myapplication.manager.MarketConfig
 import com.example.myapplication.manager.socket.mainJsonParser
@@ -82,10 +84,13 @@ class SportsbookViewmodel : BaseViewmodel() {
 
 
     suspend fun getEvents(
-        sportType: Int = selectedSportId,
+        sportType: Int,
         programType: Int = selectedProgramType,
         version: Long = 0L,
     ) {
+        selectedSportId = sportType
+        filterChanged()
+
         val service = ApiService()
         val eventDataInfo = service.getSportsbookEvents(
             sportType = selectedSportId,
@@ -142,6 +147,32 @@ class SportsbookViewmodel : BaseViewmodel() {
                     MarketConfig.updateMarketConfigs(it)
                 }
                 filterChanged()
+            }
+        }
+
+
+    }
+
+    suspend fun getSportInfo() {
+        val service = ApiService()
+        val response = service.getSportInfo()
+
+        when (response) {
+            is NetworkResponse.Error -> {
+                println(response.message)
+                println(response.code)
+                println(response.code)
+                println(response.code)
+            }
+
+            is NetworkResponse.Loading -> {
+
+            }
+
+            is NetworkResponse.Success -> {
+                response.data?.data?.let {
+                    MarketConfig.updateSportsBookInfo(it)
+                }
             }
         }
 
@@ -229,6 +260,15 @@ class ApiService() {
         return try {
             val response: HttpResponse = client.get("$baseUrl/sportsbook/get_market_config")
             NetworkResponse.Success(data = (response.body() as? MarketConfigResponse)?.data)
+
+        } catch (e: Exception) {
+            NetworkResponse.Error(e.message ?: "Bilinmeyen bir hata oluştu")
+        }
+    }
+    suspend fun getSportInfo(): NetworkResponse<SportInfoResponse?> {
+        return try {
+            val response: HttpResponse = client.get("$baseUrl/sportsbook/info")
+            NetworkResponse.Success(data = (response.body() as? SportInfoResponse))
 
         } catch (e: Exception) {
             NetworkResponse.Error(e.message ?: "Bilinmeyen bir hata oluştu")

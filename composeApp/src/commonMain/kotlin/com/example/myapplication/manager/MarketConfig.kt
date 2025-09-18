@@ -9,6 +9,7 @@ import com.example.model.MarketResponse
 import com.example.model.ProgramTypeEnum
 import com.example.model.SportInfo
 import com.example.model.SportTypeEnum
+import com.example.model.StableMap
 import com.example.model.ignoreNull
 import com.example.model.toArrayList
 import kotlinx.collections.immutable.immutableMapOf
@@ -19,7 +20,7 @@ import kotlinx.coroutines.flow.asStateFlow
 
 
 object MarketConfig{
-    var marketConfig : MarketResponse = MarketResponse(persistentMapOf(), null,null,null,null,null)
+    var marketConfig : MarketResponse = MarketResponse(mapOf(), null,null,null,null,null)
 
     private val _sportsBookInfo = MutableStateFlow<List<SportInfo>>(listOf())
     val sportsBookInfo : StateFlow<List<SportInfo>> get() = _sportsBookInfo.asStateFlow()

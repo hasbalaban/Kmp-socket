@@ -15,12 +15,21 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ScrollableTabRow
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabRowDefaults
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -28,16 +37,18 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.model.EventScoreItem
 import com.example.model.MarketLookup
 import com.example.model.OutComesItem
 import com.example.model.ScoreType
+import com.example.model.SportTypeEnum
 import com.example.model.SportsBookUpdateInfo
 import com.example.model.ignoreNull
+import com.example.myapplication.manager.MarketConfig
 import com.example.myapplication.viewmodel.ListItem
 import com.example.myapplication.viewmodel.SportsbookViewmodel
 import com.mgmbk.iddaa.manager.EventStoreManager
-import com.mgmbk.iddaa.manager.SportsBookItem
 import com.mgmbk.iddaa.manager.selectedProgramType
 import com.mgmbk.iddaa.manager.selectedSportId
 import org.koin.compose.viewmodel.koinViewModel
@@ -55,14 +66,15 @@ private fun shouldUpdateScreen(socketUpdateInfo: SportsBookUpdateInfo?): Boolean
 @Composable
 fun SportsbookScreen(viewModel: SportsbookViewmodel = koinViewModel()) {
 
+    val eventList by viewModel.events.collectAsState()
 
     LaunchedEffect(Unit) {
-        viewModel.getEvents()
         viewModel.getMarketConfig()
+        viewModel.getSportInfo()
     }
 
     Column{
-        val eventList by viewModel.events.collectAsState()
+        SportNameTabs()
 
         LazyColumn(
             modifier = Modifier.fillMaxWidth().wrapContentHeight(),
@@ -114,24 +126,70 @@ fun SportsbookScreen(viewModel: SportsbookViewmodel = koinViewModel()) {
 
 
 @Composable
-private fun SportsbookItem(event: SportsBookItem) {
-    Column(
-        modifier = Modifier.height(100.dp).fillMaxWidth(),
-    ) {
-        SportsbookItemHeader(
-            mbs = event.event.minimumBetCount,
-            homeTeamName = event.event.homeTeamName,
-            awayTeamName = event.event.awayTeamName,
-            score = event.event.score,
-            kingCount = event.event.kingCount,
-            minute = event.score?.minute
-        )
-        SportsbookMarketList(
-            event.markets.first?.outComes,
-            event.marketLookups.first,
-            event.event.oddCount.toString(),
-        )
+fun SportNameTabs(
+    viewModel: SportsbookViewmodel = koinViewModel()
+) {
+    val sportList by MarketConfig.sportsBookInfo.collectAsState()
+    var selectedSportId: Int? by remember {
+        mutableStateOf(null)
     }
+    val selectedTabIndex = remember(selectedSportId) {
+        sportList.indexOfFirst { it.sportId == selectedSportId }
+    }
+
+    LaunchedEffect(sportList) {
+        if (sportList.isNotEmpty()) {
+            selectedSportId = sportList.firstOrNull()?.sportId
+        }
+    }
+
+    LaunchedEffect(selectedSportId) {
+        selectedSportId?.let {
+            viewModel.getEvents(it)
+        }
+    }
+
+    selectedSportId?.let {
+        ScrollableTabRow(
+            selectedTabIndex = selectedTabIndex,
+            edgePadding = 0.dp,
+            divider = {
+                HorizontalDivider(color = Color.Gray)
+            },
+            indicator = { tabPositions ->
+                TabRowDefaults.Indicator(
+                    Modifier.tabIndicatorOffset(tabPositions[selectedTabIndex]),
+                    height = 3.dp,
+                    color = Color.Yellow
+                )
+            },
+            containerColor = Color(0xff008641),
+            contentColor = Color.White
+        ) {
+            // 2. Sekmeleri bir döngü ile oluştur
+            sportList.forEachIndexed { index, sportInfo ->
+                Tab(
+                    // 3. Bu sekmenin seçili olup olmadığını belirle
+                    selected = sportInfo.sportId == selectedSportId,
+                    // 4. Sekmeye tıklandığında ne olacağını belirle
+                    onClick = {
+                        selectedSportId = sportInfo.sportId
+                    },
+                    // 5. Sekmenin içeriği
+                    text = {
+                        val sportTypeName =
+                            MarketConfig.marketConfig.sportType?.get(sportInfo.sportId.toString())?.sportTypeName?.ignoreNull("-")
+
+                        Text(text = sportTypeName.ignoreNull(""), fontSize = 20.sp, color = Color.White)
+                    },
+                    selectedContentColor = Color.White,
+                    unselectedContentColor = Color.LightGray
+                )
+            }
+        }
+    }
+
+
 }
 
 @Composable
@@ -224,12 +282,15 @@ private fun SportsbookMarketList(
 }
 
 @Composable
-private fun SportsbookMarketItem(
+fun SportsbookMarketItem(
     outComesItem: OutComesItem?,
     marketLookup: MarketLookup?,
     modifier: Modifier
 ) {
-    Column(modifier = modifier.fillMaxWidth().height(50.dp).padding(top = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(
+        modifier = modifier.fillMaxWidth().height(50.dp).padding(top = 6.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
         Text(
             outComesItem?.name.ignoreNull("-"),
             color = Color.White,

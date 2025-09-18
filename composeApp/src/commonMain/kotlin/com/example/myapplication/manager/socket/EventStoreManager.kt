@@ -432,7 +432,7 @@ private typealias SportId = Int
 private typealias EventId = Int
 
 const val selectedProgramType = 1
-const val selectedSportId = 137
+var selectedSportId = 137
 
 fun sortEventsAndSetEventList(): List<SportsBookItem> {
     val events = EventStoreManager().getSportEvents(selectedProgramType, selectedSportId).data.sortedBy {
