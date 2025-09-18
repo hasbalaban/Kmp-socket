@@ -91,19 +91,14 @@ class EventStoreManager {
             eventScores.get(sportId)?.data?.set(eventId.toString(), eventScore)
         }
 
-        fun addOrUpdateEvent(event: EventsDTO, updateAllData: Boolean = true): EventsDTO? {
-            return if (event.bettingPhase == BettingPhase.LIVE_EVENT.value) {
-                addOrUpdateEventData(liveEventData, event, updateAllData)
-            } else {
-                addOrUpdateEventData(preEvents, event, updateAllData)
-            }
-        }
-
         private fun addOrUpdateEventData(
-            eventData: EventData,
             newEvent: EventsDTO,
             updateAllData: Boolean
         ): EventsDTO? {
+
+            val eventData =  if (newEvent.bettingPhase == BettingPhase.LIVE_EVENT.value) liveEventData
+            else preEvents
+
             if (eventData.data[newEvent.sportId] == null) eventData.data.put(newEvent.sportId, EventInfoMap())
 
             if (updateAllData) {
@@ -439,7 +434,7 @@ private typealias EventId = Int
 const val selectedProgramType = 1
 const val selectedSportId = 137
 
-fun sortEventsAndSetEventList(): List<SportsBookItemDTO> {
+fun sortEventsAndSetEventList(): List<SportsBookItem> {
     val events = EventStoreManager().getSportEvents(selectedProgramType, selectedSportId).data.sortedBy {
         it.score == null
     }
@@ -479,15 +474,19 @@ fun sortEventsAndSetEventList(): List<SportsBookItemDTO> {
     val coupons = CouponManagerV2.getCouponAsList()
 
     return events.mapIndexed {index, event->
+
         val isSelected = coupons.any { it.eventId == event.eventId }
 
         var market1: MarketItem? = null
         var market2: MarketItem? = null
+        market1 = event.markets?.firstOrNull()?.toMarketItem()
+        market2 = event.markets?.firstOrNull()?.toMarketItem()
         muk1?.let {
-            market1 = event.getMarket(it, sov1)?.toMarketItem()
+            market1 = event.markets?.firstOrNull()?.toMarketItem()
         }
         muk2?.let {
-            market2 = event.getMarket(it, sov2)?.toMarketItem()
+            market2 = event.markets?.firstOrNull()?.toMarketItem()
+            //market2 = event.getMarket(it, sov2)?.toMarketItem()
         }
 
 
@@ -496,7 +495,7 @@ fun sortEventsAndSetEventList(): List<SportsBookItemDTO> {
         val eventScore = EventStoreManager.eventScores[event.sportId]?.data?.get(event.eventId.toString())?.toEventScoreItem()
 
 
-        SportsBookItemDTO(
+        SportsBookItem(
             event = eventItem,
             markets = markets,
             marketLookups = marketsLookups,
@@ -506,7 +505,7 @@ fun sortEventsAndSetEventList(): List<SportsBookItemDTO> {
     }
 }
 
-data class SportsBookItemDTO(
+data class SportsBookItem(
     val event: EventItem,
     val markets: Pair<MarketItem?, MarketItem?>,
     val marketLookups: Pair<MarketLookup?, MarketLookup?>,

@@ -178,7 +178,7 @@ data class EventScoreDTO(
 
     fun getTeamSetScore(teamScore: EventTeamScoreDTO?, set: Int, type: ScoreType): Int? {
         if(teamScore != null) {
-            val partScore: ArrayList<SetScore>? = if(type == ScoreType.SETS) {
+            val partScore: ArrayList<SetScoreDTO>? = if(type == ScoreType.SETS) {
                 teamScore.setScores
             }
             else {
@@ -299,7 +299,7 @@ data class EventScoreDTO(
 data class EventTeamScoreDTO(
     @SerialName("r") var regularScore: Int?,
     @SerialName("c") var currentScore: Int?,
-    @SerialName("qs") var quarterScores: ArrayList<SetScore>?,
+    @SerialName("qs") var quarterScores: ArrayList<SetScoreDTO>?,
     @SerialName("et") var extraTimeScore: Int?,
     @SerialName("pe") var penaltiesScore: Int?,
     @SerialName("co") var corner: Int?,
@@ -308,7 +308,7 @@ data class EventTeamScoreDTO(
     @SerialName("rc") var redCard: Int?,
     @SerialName("gs") var gameScore: Int?,
     @SerialName("sp") var servingPlayer: Boolean?,
-    @SerialName("ss") var setScores: ArrayList<SetScore>?,
+    @SerialName("ss") var setScores: ArrayList<SetScoreDTO>?,
     @SerialName("ht") var halfScore: Int?
 ) {
     fun update(newTeamScore: EventTeamScoreDTO){
@@ -328,7 +328,7 @@ data class EventTeamScoreDTO(
             partScores.forEach { newSetScoreItem ->
                 var setScore = setScores?.firstOrNull { it.number == newSetScoreItem.number }
                 if(setScore == null) {
-                    setScore = SetScore(
+                    setScore = SetScoreDTO(
                         newSetScoreItem.score,
                         newSetScoreItem.number,
                         newSetScoreItem.tieBreakScore
@@ -344,7 +344,7 @@ data class EventTeamScoreDTO(
             it.forEach { newQuarterScoreItem ->
                 var quarterScore = quarterScores?.filter { it.number == newQuarterScoreItem.number }?.firstOrNull()
                 if(quarterScore == null) {
-                    quarterScore = SetScore(
+                    quarterScore = SetScoreDTO(
                         newQuarterScoreItem.score,
                         newQuarterScoreItem.number,
                         newQuarterScoreItem.tieBreakScore
@@ -384,12 +384,12 @@ data class EventTeamScoreDTO(
 }
 
 @Serializable
-data class SetScore(
+data class SetScoreDTO(
     @SerialName("s") var score: Int?,
     @SerialName("n") val number: Int,
     @SerialName("tb") var tieBreakScore: Int = -1
 ){
-    fun update(_newSetScore:SetScore){
+    fun update(_newSetScore:SetScoreDTO){
         _newSetScore.score?.let {
             score = it
         }

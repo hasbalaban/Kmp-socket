@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -22,6 +23,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.myapplication.ui.SportsbookScreen
 import com.example.myapplication.viewmodel.SportsbookViewmodel
 import com.mgmbk.iddaa.manager.EventStoreManager
 import org.jetbrains.compose.resources.painterResource
@@ -40,13 +42,12 @@ fun App(
         var showContent by remember { mutableStateOf(false) }
         var rotation by remember { mutableStateOf(0f) }
         val rotationn = animateFloatAsState(rotation)
-        val counter by viewModel.counter.collectAsState()
-
 
         Column(
             modifier = Modifier
                 .background(MaterialTheme.colorScheme.primaryContainer)
-                .safeContentPadding()
+                .padding(vertical = 12.dp)
+                //.safeContentPadding()
                 .fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
@@ -71,39 +72,7 @@ fun App(
                 }
             }
 
-            Text(text = counter.toString(), color = Color.Red, fontSize = 24.sp)
-            EventSection()
-        }
-    }
-}
-
-
-@Composable
-private fun EventSection(
-    viewModel: SportsbookViewmodel = koinViewModel()
-){
-    val events by viewModel.events.collectAsState()
-    val socketUpdateInfo by EventStoreManager.socketUpdated.collectAsState()
-
-    LaunchedEffect(socketUpdateInfo){
-        if (socketUpdateInfo?.events?.isNotEmpty() == true) {
-            println("Socket güncellendi, filterChanged() tetikleniyor. Yeni değer: $socketUpdateInfo")
-            viewModel.filterChanged()
-        }
-    }
-
-    LaunchedEffect(Unit){
-        viewModel.getEvents()
-        viewModel.getMarketConfig()
-    }
-
-
-
-
-
-    LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(10.dp)){
-        items(events){
-            Text(it.score?.minute.toString() + "-" + it.event.awayTeamName.toString(), color = Color.Black, fontSize = 16.sp)
+            SportsbookScreen()
         }
     }
 }

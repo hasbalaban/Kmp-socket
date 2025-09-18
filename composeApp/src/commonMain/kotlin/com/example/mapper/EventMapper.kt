@@ -4,11 +4,13 @@ import com.example.model.EventItem
 import com.example.model.EventScoreItem
 import com.example.model.EventsDTO
 import com.example.model.MarketItem
+import com.example.myapplication.manager.value
+import kotlinx.collections.immutable.ImmutableList
 
 fun EventsDTO.toEventItem(isSelected : Boolean): EventItem {
-    val markets : List<MarketItem>? = markets?.toMarketItems()
+    val markets : ImmutableList<MarketItem>? = markets?.toMarketItems()
     val score : EventScoreItem? = score?.toEventScoreItem()
-    val sliderMarkets : List<MarketItem>? = sliderMarkets?.toMarketItems()
+    val sliderMarkets : ImmutableList<MarketItem>? = sliderMarkets?.toMarketItems()
     return EventItem(
         // Her bir property'yi sırasıyla kopyala
         eventId,
@@ -39,6 +41,7 @@ fun EventsDTO.toEventItem(isSelected : Boolean): EventItem {
         hasComments,
         hasStream,
         sliderMarkets,
+        kingCount = kingMbc.value() + kingOdds.value() + isKingLive.value(),
         isSelected = isSelected
     )
 }

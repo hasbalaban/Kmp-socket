@@ -5,10 +5,11 @@ import com.example.model.EventDataInfo
 import com.example.model.EventsResponse
 import com.example.model.MarketConfigResponse
 import com.example.model.MarketResponse
+import com.example.model.SportsBookUpdateInfo
 import com.example.myapplication.manager.MarketConfig
 import com.example.myapplication.manager.socket.mainJsonParser
 import com.mgmbk.iddaa.manager.EventStoreManager
-import com.mgmbk.iddaa.manager.SportsBookItemDTO
+import com.mgmbk.iddaa.manager.SportsBookItem
 import com.mgmbk.iddaa.manager.selectedProgramType
 import com.mgmbk.iddaa.manager.selectedSportId
 import com.mgmbk.iddaa.manager.sortEventsAndSetEventList
@@ -22,26 +23,60 @@ import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+
+private fun shouldUpdateScreen(socketUpdateInfo: SportsBookUpdateInfo?): Boolean {
+    val sportsId = selectedSportId
+    val programType = selectedProgramType
+
+    return socketUpdateInfo?.events?.any {
+        EventStoreManager.findEvent(it, sportsId, programType) != null
+    } == true
+}
+
+sealed interface ListItem {
+    data class Event(val sportsBookItem: SportsBookItem) : ListItem
+    object Divider : ListItem
+}
 
 
 class SportsbookViewmodel : BaseViewmodel() {
-    private val _counter = MutableStateFlow(0)
-    val counter: StateFlow<Int> = _counter
 
-    private val _events = MutableStateFlow<List<SportsBookItemDTO>>(emptyList())
-    val events: StateFlow<List<SportsBookItemDTO>> = _events
+    private val _events = MutableStateFlow<List<ListItem>>(emptyList())
+    val events: StateFlow<List<ListItem>> = _events.asStateFlow()
+
 
     init {
-        startTimer()
+        listenToSocketUpdates()
     }
 
-    private fun startTimer() {
-        viewModelScope.launch {
-            while (true) {
-                delay(500)
-                //_counter.emit(counter.value + 1)
+
+    private fun prepareListForUi(events: List<SportsBookItem>): List<ListItem> {
+        val listWithDividers = mutableListOf<ListItem>()
+        events.forEachIndexed { index, event ->
+            listWithDividers.add(ListItem.Event(event))
+            if (index < events.lastIndex) {
+                listWithDividers.add(ListItem.Divider)
             }
+        }
+        return listWithDividers
+    }
+
+    private fun listenToSocketUpdates() {
+        viewModelScope.launch {
+            EventStoreManager.socketUpdated
+                .filterNotNull() // Başlangıçtaki null değeri atla
+                .collect { updateInfo ->
+                    // shouldUpdateScreen mantığı artık burada
+                    if (shouldUpdateScreen(updateInfo) && updateInfo.events.isNotEmpty()) {
+                        println("Socket güncellendi (DEBOUNCED), filterChanged() tetikleniyor.")
+                        filterChanged()
+                    }
+                }
         }
     }
 
@@ -127,9 +162,13 @@ class SportsbookViewmodel : BaseViewmodel() {
         )
     }
 
-    suspend fun filterChanged() {
+    fun filterChanged() {
         val events = sortEventsAndSetEventList()
-        _events.emit(events)
+        val uiList = prepareListForUi(events)
+
+        _events.update {
+            uiList
+        }
     }
 
 

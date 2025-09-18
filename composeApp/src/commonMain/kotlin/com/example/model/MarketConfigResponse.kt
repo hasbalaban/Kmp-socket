@@ -1,5 +1,8 @@
 package com.example.model
 
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.ImmutableMap
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlin.math.abs
@@ -30,22 +33,22 @@ data class MarketConfigResponse(
 data class MarketResponse(
 
     @SerialName("m")
-    val marketLookup: Map<String, MarketLookup>,
+    val marketLookup: ImmutableMap<String, MarketLookup>,
 
     @SerialName("s")
-    val sportType: Map<String, SportType>?,
+    val sportType: ImmutableMap<String, SportType>?,
 
     @SerialName("mg")
-    val marketGroup: Map<String, MarketGroup>?,
+    val marketGroup: ImmutableMap<String, MarketGroup>?,
 
     @SerialName("msg")
-    val marketSubGroup: Map<String, MarketSubGroup>?,
+    val marketSubGroup: ImmutableMap<String, MarketSubGroup>?,
 
     @SerialName("dmg")
-    val detailMarketGroup: Map<String, DetailMarketGroup>?,
+    val detailMarketGroup: ImmutableMap<String, DetailMarketGroup>?,
 
     @SerialName("dmsg")
-    val detailMarketSubGroup: Map<String, DetailMarketSubGroup>?,
+    val detailMarketSubGroup: ImmutableMap<String, DetailMarketSubGroup>?,
 )
 
 @Serializable
@@ -88,10 +91,10 @@ data class MarketLookup(
     val isMarketMain: Boolean?,
 
     @SerialName("mg")
-    val marketSubGroups: List<Int>?,
+    val marketSubGroups: ImmutableList<Int>?,
 
     @SerialName("mdg")
-    val detailMarketSubGroups: List<Int>?,
+    val detailMarketSubGroups: ImmutableList<Int>?,
 
     @SerialName("ir")
     val isRapidMarket: Boolean?,
@@ -100,7 +103,7 @@ data class MarketLookup(
     val isNewMarket: Boolean = false,
 
     @SerialName("o")
-    val outcomeLookup: Map<String, String>?
+    val outcomeLookup: ImmutableMap<String, String>?
 
 ){
     private var name: String? = null
@@ -125,7 +128,7 @@ data class MarketLookup(
         if (marketName.contains("{h}"))
             _name = getNameHandicap(specialOdd)
 
-        var sovs:List<String> = specialOdd.split("|")
+        var sovs:ImmutableList<String> = specialOdd.split("|").toImmutableList()
 
         _name = if (sovs.isNotEmpty()) {
             _name.replace("{0}", sovs[0]).trim { it <= ' ' }
@@ -156,7 +159,7 @@ data class MarketLookup(
     }
 
     fun getHandicap(specialOdd: String): String {
-        val sovs:List<String> = specialOdd.split("|")
+        val sovs:ImmutableList<String> = specialOdd.split("|").toImmutableList()
 
         val handicap = if (sovs.isNotEmpty() && sovs.get(sovs.size-1).isNotEmpty()) {
             var homeHandicap = "0"
@@ -246,7 +249,7 @@ data class MarketGroup(
     val sportType: Int?,
 
     @SerialName("sg")
-    val subGroups: List<Int>?,
+    val subGroups: ImmutableList<Int>?,
 
     @SerialName("im")
     val isMobil: Boolean?,
@@ -270,7 +273,7 @@ data class MarketSubGroup(
     val priority: Int?,
 
     @SerialName("m")
-    val markets: List<String>?, // market unique key - list
+    val markets: ImmutableList<String>?, // market unique key - list
 
     @SerialName("im")
     val isMobil: Boolean?,
@@ -301,7 +304,7 @@ data class DetailMarketGroup(
     val sportType: Int?,
 
     @SerialName("sg")
-    val subGroups: List<Int>?,
+    val subGroups: ImmutableList<Int>?,
 
     @SerialName("iv")
     val isVisible: Boolean?
@@ -322,7 +325,7 @@ data class DetailMarketSubGroup(
     val marketGroup: Int = -999,
 
     @SerialName("m")
-    val markets: List<String>?, // market unique key - list
+    val markets: ImmutableList<String>?, // market unique key - list
 
     @SerialName("iv")
     val isVisible: Boolean?,

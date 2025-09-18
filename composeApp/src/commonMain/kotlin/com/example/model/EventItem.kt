@@ -1,5 +1,7 @@
 package com.example.model
 
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.toImmutableList
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -60,7 +62,7 @@ data class EventItem(
     val hasRapid : Boolean? = null,
 
     @SerialName("m")
-    val markets : List<MarketItem>? = null,
+    val markets : ImmutableList<MarketItem>? = null,
 
     @SerialName("ci")
     val competitionId : Int,
@@ -90,9 +92,10 @@ data class EventItem(
     @SerialName("hs")
     val hasStream: Boolean? = false,
 
-    val sliderMarkets: List<MarketItem>? = null,
+    val sliderMarkets: ImmutableList<MarketItem>? = null,
 
-    val isSelected : Boolean = false
+    val isSelected : Boolean = false,
+    val kingCount : Int,
 )
 
 @Serializable
@@ -117,7 +120,7 @@ data class MarketItem (
     val mbc : Int?,
 
     @SerialName("o")
-    val outComes : List<OutComesItem>? = null,
+    val outComes : ImmutableList<OutComesItem>? = null,
 
     @SerialName("sov")
     val specialOddValue : String?,
@@ -129,7 +132,7 @@ data class MarketItem (
     fun sov():Double{
         if(specialOdd != null)
             return specialOdd.ignoreNull()
-        val sovs:List<String> = specialOddValue.ignoreNull().split("|")
+        val sovs:ImmutableList<String> = specialOddValue.ignoreNull().split("|").toImmutableList()
 
         return if (sovs.isNotEmpty()){
             sovs[sovs.size-1].toDoubleIgnoreNull()
@@ -321,12 +324,9 @@ data class EventScoreItem(
 
     fun getTeamSetScore(teamScore: EventTeamScoreItem?, set: Int, type: ScoreType): Int? {
         if(teamScore != null) {
-            val partScore: ArrayList<SetScore>? = if(type == ScoreType.SETS) {
+            val partScore = if(type == ScoreType.SETS)
                 teamScore.setScores
-            }
-            else {
-                teamScore.quarterScores
-            }
+            else teamScore.quarterScores
 
             if(!partScore.isNullOrEmpty() && partScore.size >= set) {
                 partScore.forEach {
@@ -418,10 +418,18 @@ data class EventScoreItem(
 }
 
 @Serializable
+data class SetScore(
+    @SerialName("s") val score: Int?,
+    @SerialName("n") val number: Int,
+    @SerialName("tb") val tieBreakScore: Int = -1
+)
+
+
+@Serializable
 data class EventTeamScoreItem(
     @SerialName("r") val regularScore: Int?,
     @SerialName("c") val currentScore: Int?,
-    @SerialName("qs") val quarterScores: ArrayList<SetScore>?,
+    @SerialName("qs") val quarterScores: ImmutableList<SetScoreItem>?,
     @SerialName("et") val extraTimeScore: Int?,
     @SerialName("pe") val penaltiesScore: Int?,
     @SerialName("co") val corner: Int?,
@@ -430,7 +438,7 @@ data class EventTeamScoreItem(
     @SerialName("rc") val redCard: Int?,
     @SerialName("gs") val gameScore: Int?,
     @SerialName("sp") val servingPlayer: Boolean?,
-    @SerialName("ss") val setScores: ArrayList<SetScore>?,
+    @SerialName("ss") val setScores: ImmutableList<SetScoreItem>?,
     @SerialName("ht") val halfScore: Int?
 ) {
 
