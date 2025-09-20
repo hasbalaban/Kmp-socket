@@ -13,9 +13,12 @@ import com.example.model.SystemCalculationItem
 import com.example.model.ignoreNull
 import com.example.myapplication.moneyformatter.formatMoney
 import com.example.myapplication.moneyformatter.toKmpBigDecimal
-import com.mgmbk.iddaa.manager.EventStoreManager
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.serialization.Serializable
+import kotlin.collections.forEach
 import kotlin.math.max
 import kotlin.math.min
 
@@ -23,7 +26,10 @@ import kotlin.math.min
 class CouponManagerV2 {
     companion object {
         //TODO : HashMap must be ConcurrentHashMap
-        val eventItems = MutableStateFlow<HashMap<Int, CouponItem>>(hashMapOf())
+
+        private val _eventItems = MutableStateFlow<Map<Int, CouponItem>>(mapOf())
+        val eventItems: StateFlow<Map<Int, CouponItem>> = _eventItems.asStateFlow()
+
         val columnCount = MutableStateFlow<Long>(0)
 
         val selectedSystems = mutableListOf<Int>()
@@ -123,13 +129,18 @@ class CouponManagerV2 {
                 val outcome = couponItemData?.third
 
                 couponItems[eventId]?.let {
-                    couponItems.remove(eventId)
+                    removeItem(listOf(eventId))
+
                     if (it.outcomeNo != couponItem.outcomeNo || it.marketId != couponItem.marketId) {
-                        couponItems[eventId] = couponItem
+                        val newMap = _eventItems.value.toMutableMap()
+                        newMap[eventId] = couponItem
+                        _eventItems.value = newMap
                     }
 
                 } ?: run {
-                    couponItems[eventId] = couponItem
+                    val newMap = _eventItems.value.toMutableMap()
+                    newMap[eventId] = couponItem
+                    _eventItems.value = newMap
                 }
 
                 removeInproperSystems()
@@ -137,33 +148,35 @@ class CouponManagerV2 {
                     resetBetslip()
                 }
 
-                eventItems.tryEmit(couponItems)
-
-                val updateInfo = SportsBookUpdateInfo(1, arrayListOf(couponItem.eventId))
+                val updateInfo = SportsBookUpdateInfo(2, arrayListOf(couponItem.eventId))
                 EventStoreManager.setSocketUpdated(updateInfo)
             }
         }
 
-        fun removeItem(eventId: Int) {
-            eventItems.value?.let { couponItems ->
-                couponItems.remove(eventId)
-                eventItems.tryEmit(couponItems)
+        fun removeItem(eventList: List<Int>) {
+            val newMap = _eventItems.value.toMutableMap()
+            eventList.forEach {
+                newMap.remove(it)
             }
+            _eventItems.value = newMap
         }
 
         fun eventsRemoved(eventIds: List<Int>) {
-            eventItems.value?.let { couponItems ->
-                eventIds.forEach { eventId ->
-                    couponItems[eventId]?.let {
+            val newMap = _eventItems.value.toMutableMap()
+
+            newMap.values?.let {
+                eventIds.forEach {  eventId ->
+                    newMap[eventId]?.let {
                         it.isRemoved = true
                     }
                 }
-                eventItems.value?.let { eventItems.tryEmit(it) }
             }
+            _eventItems.value = newMap
         }
 
         fun triggerRefreshCoupon() {
-            eventItems.value?.let { eventItems.tryEmit(it) }
+           val newMap = _eventItems.value.toMutableMap()
+            _eventItems.value = newMap
         }
 
         fun removeInproperSystems() {
@@ -174,29 +187,30 @@ class CouponManagerV2 {
         }
 
         fun resetCouponEvents() {
-            eventItems.value = HashMap()
+            _eventItems.update { mapOf() }
         }
 
         fun updateSocketEvents(ids: List<Int>) {
-            eventItems.value?.let { couponItems ->
+            val newMap = _eventItems.value.toMutableMap()
+            newMap.values?.let { couponItems ->
                 val updatedItems: MutableMap<Int, CouponItem> = mutableMapOf()
 
                 couponItems.forEach {
-                    val itemData = it.value.getCouponItemData()
+                    val itemData = it.getCouponItemData()
                     val isUpdated =
-                        ids.contains(it.value.eventId) && itemData.third?.prevOddIsDifferent() == true && itemData.third?.odd != it.value.oddPrev
+                        ids.contains(it.eventId) && itemData.third?.prevOddIsDifferent() == true && itemData.third?.odd != it.oddPrev
 
-                    it.value.oddPrev = itemData.third?.odd ?: 0.0
+                    it.oddPrev = itemData.third?.odd ?: 0.0
 
                     if (isUpdated) {
-                        it.value.itemData = CouponItemData(itemData)
-                        updatedItems[it.key] = it.value
+                        it.itemData = CouponItemData(itemData)
+                        updatedItems[it.eventId] = it
                     }
                 }
 
                 updatedItemCount.value = updatedItems.size
-                eventItems.tryEmit(couponItems)
             }
+            _eventItems.value = newMap
         }
 
         fun getCouponAsList(): List<CouponItem> {

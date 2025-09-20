@@ -4,99 +4,77 @@ import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import myapplication.composeapp.generated.resources.Res
+import myapplication.composeapp.generated.resources.ic_mbs_1_live
+import myapplication.composeapp.generated.resources.ic_mbs_2_live
+import myapplication.composeapp.generated.resources.ic_mbs_3_live
+import org.jetbrains.compose.resources.DrawableResource
 
 
-@Serializable
+fun getMbsImage(mbs: Int): DrawableResource? {
+    return when (mbs) {
+        1 -> Res.drawable.ic_mbs_1_live
+        2 -> Res.drawable.ic_mbs_2_live
+        3 -> Res.drawable.ic_mbs_3_live
+        else -> null
+    }
+}
+
 data class EventItem(
-    @SerialName("i")
     val eventId : Int,
-
-    @SerialName("mpi")
     val mappedId: Int?,
-
-    @SerialName("bri")
     val betRadarId : Long? = null,
-
-    @SerialName("cref")
     val cref : Long? = null,
-
-    @SerialName("v")
     val eventVersion : Long,
-
-    @SerialName("n")
     val eventName : String?,
-
-    @SerialName("sid")
     val sportId : Int,
-
-    @SerialName("d")
     val eventDate : Long,
-
     // 0:closed, 1, open, -1, paused, -2:suspended
-    @SerialName("s")
     val status : Int,
-
     // 0:pre, 1:live
-    @SerialName("bp")
     val bettingPhase : Int = 0,
-
-    @SerialName("il")
     val isLive : Boolean = false,
-
-    @SerialName("mbc")
     val minimumBetCount : Int = 1,
-
-    @SerialName("kOdd")
     val kingOdds : Boolean = false,
-
-    @SerialName("kMbc")
     val kingMbc : Boolean = false,
-
-    @SerialName("kLive")
     val isKingLive : Boolean = false,
-
-    @SerialName("hduel")
     val hasDuel : Boolean? = false,
-
-    @SerialName("hr")
     val hasRapid : Boolean? = null,
-
-    @SerialName("m")
     val markets : ImmutableList<MarketItem>? = null,
-
-    @SerialName("ci")
     val competitionId : Int,
-
-    @SerialName("rhei")
     val realHomeEventId : Int? = null,
-
-    @SerialName("raei")
     val realAwayEventId : Int? = null,
-
     //Canlı maçlar için maçın skor bilgisi döner
-    @SerialName("sc")
     val score : EventScoreItem? = null,
-
-    @SerialName("oc")
     val oddCount : Int?,
-
-    @SerialName("hn")
     val homeTeamName : String?,
-
-    @SerialName("an")
     val awayTeamName : String?,
-
-    @SerialName("hc")
     val hasComments: Boolean? = false,
-
-    @SerialName("hs")
     val hasStream: Boolean? = false,
-
     val sliderMarkets: ImmutableList<MarketItem>? = null,
-
-    val isSelected : Boolean = false,
+    val isSelected: Boolean,
     val kingCount : Int,
-)
+    val mbsIconResource: DrawableResource? = getMbsImage(minimumBetCount),
+){
+    fun getName():String{
+        if(!eventName.isNullOrEmpty())
+            return eventName.ignoreNull("-")
+
+        return "$homeTeamName - $awayTeamName"
+    }
+
+    fun getMarket(muk : String, sov:String? = null): MarketItem? {
+        try {
+            return markets?.filter {
+                muk == it.key() &&
+                        (sov == null || sov.toDoubleIgnoreNull() == it.sov() )
+            }?.firstOrNull()
+        }catch (e:Exception){
+            return null
+        }
+    }
+
+}
 
 @Serializable
 data class MarketItem (
@@ -484,6 +462,8 @@ data class OutComesItem(
 
     @SerialName("n")
     val name : String = "",
+
+    val isSelected : Boolean
 
     ){
 

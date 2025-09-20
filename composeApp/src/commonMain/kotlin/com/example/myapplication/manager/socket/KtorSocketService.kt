@@ -2,7 +2,7 @@ package com.example.myapplication.manager.socket
 
 import com.example.model.EventScoreDTO
 import com.example.model.SocketEvent
-import com.mgmbk.iddaa.manager.EventStoreManager
+import com.example.myapplication.manager.EventStoreManager
 import eu.lepicekmichal.signalrkore.AutomaticReconnect
 import eu.lepicekmichal.signalrkore.HubConnection
 import eu.lepicekmichal.signalrkore.HubConnectionBuilder

@@ -1,6 +1,7 @@
-package com.mgmbk.iddaa.manager
+package com.example.myapplication.manager
 
 
+import androidx.compose.runtime.Immutable
 import com.example.mapper.toEventItem
 import com.example.mapper.toEventScoreItem
 import com.example.mapper.toMarketItem
@@ -13,14 +14,15 @@ import com.example.model.EventTeamScoreDTO
 import com.example.model.EventsDTO
 import com.example.model.MarketItem
 import com.example.model.MarketLookup
+import com.example.model.OutComesItem
 import com.example.model.ProgramTypeEnum
 import com.example.model.SocketEvent
 import com.example.model.SportsBookUpdateInfo
 import com.example.model.ignoreNull
 import com.example.model.toArrayList
-import com.example.myapplication.manager.CouponManagerV2
-import com.example.myapplication.manager.MarketConfig
-import com.example.myapplication.manager.SportsBookFilterManager
+import com.example.myapplication.viewmodel.ListItem
+import io.ktor.events.Events
+import kotlinx.collections.immutable.ImmutableList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -31,16 +33,16 @@ import kotlinx.coroutines.launch
 import kotlin.collections.get
 
 data class EventInfo(
-    var version: Long = 0,
-    var data: List<EventsDTO> = ArrayList()
+    val version: Long = 0,
+    val data: List<EventsDTO> = ArrayList()
 )
 
 class EventStoreManager {
     companion object {
 
-        var liveEventData: EventData = EventData()
-        var preEvents: EventData = EventData()
-        var specialEvents: EventData = EventData()
+        val liveEventData: EventData = EventData()
+        val preEvents: EventData = EventData()
+        val specialEvents: EventData = EventData()
         val eventScores: HashMap<SportId, ScoreData> = HashMap()
 
         private val _socketUpdated = MutableStateFlow<SportsBookUpdateInfo?>(null)
@@ -357,7 +359,6 @@ class EventStoreManager {
     }
 
     fun updateScoreFromSocket(socketScore: EventScoreDTO) {
-
         var score: EventScoreDTO? = null
         var sportId: Int = 1
 
@@ -431,83 +432,65 @@ data class EventInfoMap(
 private typealias SportId = Int
 private typealias EventId = Int
 
-const val selectedProgramType = 1
-var selectedSportId = 137
+data class PreSportsBookItem(
+    val event: EventItem,
+    val markets: Pair<MarketItem?, MarketItem?>,
+    val marketLookups: Pair<MarketLookup?, MarketLookup?>,
+)
 
-fun sortEventsAndSetEventList(): List<SportsBookItem> {
-    val events = EventStoreManager().getSportEvents(selectedProgramType, selectedSportId).data.sortedBy {
-        it.score == null
-    }
-
-    val muks = SportsBookFilterManager.selectedFilter.selectedGroupKey.markets
-    val mukSize = muks.size.coerceAtLeast(0)
-    val key1: String? = if (mukSize > 0) muks[0] else null
-    val key2: String? = if (mukSize > 1) muks[1] else null
-
-    var muk1: String? = null
-    var muk2: String? = null
-    var sov1: String? = null
-    var sov2: String? = null
-    key1?.let {
-        val muklist1 = key1.split("_")
-        muk1 = muklist1.getOrNull(0).ignoreNull("1") + "_" +
-                muklist1.getOrNull(1).ignoreNull("1")
-        sov1 = muklist1.getOrNull(2)
-    }
-    key2?.let {
-        val muklist2 = key2.split("_")
-        muk2 = muklist2.getOrNull(0).ignoreNull("1") + "_" +
-                muklist2.getOrNull(1).ignoreNull("1")
-        sov2 = muklist2.getOrNull(2)
-    }
-
-    val marketLookup1 = MarketConfig.getMarketLookup(muk1.ignoreNull("-"))
-    var marketLookup2: MarketLookup? = null
-    muk2?.let {
-        marketLookup2 = MarketConfig.getMarketLookup(muk2.ignoreNull("-"))
-    }
-
-
-    val marketsLookups: Pair<MarketLookup?, MarketLookup?> =
-        Pair(marketLookup1, marketLookup2)
-
-    val coupons = CouponManagerV2.getCouponAsList()
-
-    return events.mapIndexed {index, event->
-
-        val isSelected = coupons.any { it.eventId == event.eventId }
-
-        var market1: MarketItem? = null
-        var market2: MarketItem? = null
-        market1 = event.markets?.firstOrNull()?.toMarketItem()
-        market2 = event.markets?.firstOrNull()?.toMarketItem()
-        muk1?.let {
-            market1 = event.markets?.firstOrNull()?.toMarketItem()
-        }
-        muk2?.let {
-            market2 = event.markets?.firstOrNull()?.toMarketItem()
-            //market2 = event.getMarket(it, sov2)?.toMarketItem()
-        }
-
-
-        val eventItem = event.toEventItem(isSelected = isSelected)
-        val markets: Pair<MarketItem?, MarketItem?> = Pair(market1, market2)
-        val eventScore = EventStoreManager.eventScores[event.sportId]?.data?.get(event.eventId.toString())?.toEventScoreItem()
-
-
-        SportsBookItem(
-            event = eventItem,
-            markets = markets,
-            marketLookups = marketsLookups,
-            score = eventScore
-        )
-
-    }
-}
-
-data class SportsBookItem(
+data class LiveSportsBookItem(
     val event: EventItem,
     val markets: Pair<MarketItem?, MarketItem?>,
     val marketLookups: Pair<MarketLookup?, MarketLookup?>,
     val score: EventScoreItem?
 )
+
+
+data class TitleItem(
+    val title: String?,
+    val isNextLiveMatch: Boolean = false,
+)
+
+data class SpecialEventGroupItem(
+    val eventDate: Long,
+    val competitionId: Int,
+    val groupName: String,
+    val leagueCountryImage: String? = null,
+)
+
+data class SpecialEventTitleItem(
+    val minimumBetCount: Int,
+    val eventName: String,
+    val eventTime: String,
+    val bettingPhase: Int
+)
+
+@Immutable
+data class SpecialEventOutComesItem(
+    val index:Int = 0,
+    val marketLookup: MarketLookup,
+    val event: EventItem,
+    val market: MarketItem,
+    val outcomes: ImmutableList<OutComesItem>,
+    val oddCount:Int = 2,
+    val shouldShowTopPadding : Boolean = false
+)
+
+
+
+
+@Immutable
+data class SportsbookTitleItem(
+    val groupName: String,
+    val cn: String?,
+    val isGroupByLeague: Boolean = false,
+    val isLeagueName : Boolean = false,
+    val sportId : Int? = null,
+    val leagueCountryImage : String? = null
+)
+
+@Immutable
+data class UpComingEventItem(
+    val event: EventItem
+)
+

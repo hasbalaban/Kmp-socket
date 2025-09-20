@@ -70,6 +70,8 @@ kotlin {
             implementation(libs.koin.viewmodel)
 
             implementation(libs.kotlinx.collections.immutable)
+
+            implementation("io.github.qdsfdhvh:image-loader:1.7.4")
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

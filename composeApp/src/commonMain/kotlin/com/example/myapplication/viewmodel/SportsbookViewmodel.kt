@@ -1,20 +1,26 @@
 package com.example.myapplication.viewmodel
 
 import androidx.lifecycle.viewModelScope
+import com.example.model.CompetitionsResponse
 import com.example.model.EventDataInfo
 import com.example.model.EventsResponse
 import com.example.model.MarketConfigResponse
 import com.example.model.MarketResponse
-import com.example.model.SportInfo
 import com.example.model.SportInfoResponse
 import com.example.model.SportsBookUpdateInfo
 import com.example.myapplication.manager.MarketConfig
 import com.example.myapplication.manager.socket.mainJsonParser
-import com.mgmbk.iddaa.manager.EventStoreManager
-import com.mgmbk.iddaa.manager.SportsBookItem
-import com.mgmbk.iddaa.manager.selectedProgramType
-import com.mgmbk.iddaa.manager.selectedSportId
-import com.mgmbk.iddaa.manager.sortEventsAndSetEventList
+import com.example.myapplication.manager.EventStoreManager
+import com.example.myapplication.manager.LiveSportsBookItem
+import com.example.myapplication.manager.SpecialEventGroupItem
+import com.example.myapplication.manager.PreSportsBookItem
+import com.example.myapplication.manager.SpecialEventOutComesItem
+import com.example.myapplication.manager.SpecialEventTitleItem
+import com.example.myapplication.manager.SportsBookFilterManager
+import com.example.myapplication.manager.SportsBookUiHandler
+import com.example.myapplication.manager.SportsbookTitleItem
+import com.example.myapplication.manager.TitleItem
+import com.example.myapplication.manager.UpComingEventItem
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -22,18 +28,19 @@ import io.ktor.client.request.get
 import io.ktor.client.request.parameter
 import io.ktor.client.statement.HttpResponse
 import io.ktor.serialization.kotlinx.json.json
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 private fun shouldUpdateScreen(socketUpdateInfo: SportsBookUpdateInfo?): Boolean {
-    val sportsId = selectedSportId
-    val programType = selectedProgramType
+    val sportsId = SportsBookFilterManager.selectedFilter.sportId
+    val programType = SportsBookFilterManager.selectedFilter.programType
 
     return socketUpdateInfo?.events?.any {
         EventStoreManager.findEvent(it, sportsId, programType) != null
@@ -41,8 +48,14 @@ private fun shouldUpdateScreen(socketUpdateInfo: SportsBookUpdateInfo?): Boolean
 }
 
 sealed interface ListItem {
-    data class Event(val sportsBookItem: SportsBookItem) : ListItem
-    object Divider : ListItem
+    data class Title(val item: TitleItem) : ListItem
+    data class PreEvent(val item: PreSportsBookItem) : ListItem
+    data class LiveEvent(val item: LiveSportsBookItem) : ListItem
+    data class UpComingEvent(val item: UpComingEventItem) : ListItem
+    data class SportsbookTitle(val item: SportsbookTitleItem) : ListItem
+    data class SpecialEventGroup(val item: SpecialEventGroupItem) : ListItem
+    data class SpecialEventTitle(val item: SpecialEventTitleItem) : ListItem
+    data class SpecialEventOutcome(val item: SpecialEventOutComesItem) : ListItem
 }
 
 
@@ -57,21 +70,10 @@ class SportsbookViewmodel : BaseViewmodel() {
     }
 
 
-    private fun prepareListForUi(events: List<SportsBookItem>): List<ListItem> {
-        val listWithDividers = mutableListOf<ListItem>()
-        events.forEachIndexed { index, event ->
-            listWithDividers.add(ListItem.Event(event))
-            if (index < events.lastIndex) {
-                listWithDividers.add(ListItem.Divider)
-            }
-        }
-        return listWithDividers
-    }
-
     private fun listenToSocketUpdates() {
         viewModelScope.launch {
             EventStoreManager.socketUpdated
-                .filterNotNull() // Başlangıçtaki null değeri atla
+                .filterNotNull()
                 .collect { updateInfo ->
                     // shouldUpdateScreen mantığı artık burada
                     if (shouldUpdateScreen(updateInfo) && updateInfo.events.isNotEmpty()) {
@@ -80,21 +82,24 @@ class SportsbookViewmodel : BaseViewmodel() {
                     }
                 }
         }
+
     }
 
 
     suspend fun getEvents(
         sportType: Int,
-        programType: Int = selectedProgramType,
+        programType: Int,
         version: Long = 0L,
     ) {
-        selectedSportId = sportType
+        SportsBookFilterManager.selectedFilter.sportId = sportType
+        SportsBookFilterManager.selectedFilter.programType = programType
+
         filterChanged()
 
         val service = ApiService()
         val eventDataInfo = service.getSportsbookEvents(
-            sportType = selectedSportId,
-            programType = selectedProgramType,
+            sportType = sportType,
+            programType = programType,
             version = version
         )
 
@@ -158,21 +163,27 @@ class SportsbookViewmodel : BaseViewmodel() {
         val response = service.getSportInfo()
 
         when (response) {
-            is NetworkResponse.Error -> {
-                println(response.message)
-                println(response.code)
-                println(response.code)
-                println(response.code)
-            }
-
-            is NetworkResponse.Loading -> {
-
-            }
-
+            is NetworkResponse.Error -> {}
+            is NetworkResponse.Loading -> {}
             is NetworkResponse.Success -> {
                 response.data?.data?.let {
                     MarketConfig.updateSportsBookInfo(it)
                 }
+            }
+        }
+
+
+    }
+
+    suspend fun getCompetitions() {
+        val service = ApiService()
+        val response = service.getCompetitions()
+
+        when (response) {
+            is NetworkResponse.Error -> {}
+            is NetworkResponse.Loading -> {}
+            is NetworkResponse.Success -> {
+                response.data?.data?.let { MarketConfig.updateCompetitions(it) }
             }
         }
 
@@ -194,12 +205,8 @@ class SportsbookViewmodel : BaseViewmodel() {
     }
 
     fun filterChanged() {
-        val events = sortEventsAndSetEventList()
-        val uiList = prepareListForUi(events)
-
-        _events.update {
-            uiList
-        }
+        val uiList = SportsBookUiHandler().getSportsbookUiList()
+        _events.value = uiList
     }
 
 
@@ -274,6 +281,16 @@ class ApiService() {
             NetworkResponse.Error(e.message ?: "Bilinmeyen bir hata oluştu")
         }
     }
+    suspend fun getCompetitions(): NetworkResponse<CompetitionsResponse?> {
+        return try {
+            val response: HttpResponse = client.get("$baseUrl/sportsbook/competitions")
+            NetworkResponse.Success(data = (response.body() as? CompetitionsResponse))
+
+        } catch (e: Exception) {
+            NetworkResponse.Error(e.message ?: "Bilinmeyen bir hata oluştu")
+        }
+    }
+
 }
 
 

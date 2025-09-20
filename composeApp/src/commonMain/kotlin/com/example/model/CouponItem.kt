@@ -2,7 +2,7 @@ package com.example.model
 
 
 import com.example.myapplication.manager.MarketConfig
-import com.mgmbk.iddaa.manager.EventStoreManager
+import com.example.myapplication.manager.EventStoreManager
 import kotlinx.serialization.Serializable
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
@@ -63,7 +63,16 @@ data class CouponItem @OptIn(ExperimentalTime::class) constructor(
     }
 
     companion object {
+        fun getMarketName(market: MarketItem, outComes: OutComesItem, withOutcome: Boolean = true): String {
+            val marketLookup = MarketConfig.getMarketLookup(market.key() ?: "")
+            val marketNameStr = marketLookup?.getName(market.specialOddValue ?: "") ?: "-"
+            val outcomeStr = marketLookup?.getOutcomeName(outComes.outcomeNo, market.specialOddValue) ?: outComes.name
+
+            return if(withOutcome) "$marketNameStr: $outcomeStr" else "$marketNameStr"
+        }
+
         fun getMarketName(market: MarketDTO, outComes: OutComesDTO, withOutcome: Boolean = true): String {
+
             val marketLookup = MarketConfig.getMarketLookup(market.key() ?: "")
             val marketNameStr = marketLookup?.getName(market.specialOddValue ?: "") ?: "-"
             val outcomeStr = marketLookup?.getOutcomeName(outComes.outcomeNo, market.specialOddValue) ?: outComes.name
